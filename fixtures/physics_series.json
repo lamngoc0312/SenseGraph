@@ -1,0 +1,72 @@
+{
+  "schema_version": "1.0",
+  "id": "physics_series",
+  "title": "Basic Series Circuit",
+  "domain": "physics_circuit",
+  "summary": "A simple series circuit contains a battery B1, a switch S1 and a bulb L1 connected in one loop. The switch is open, so the circuit is incomplete and the bulb is off.",
+  "source": {
+    "mode": "fixture",
+    "filename": "physics_series.png",
+    "provider": null
+  },
+  "review_status": "confirmed",
+  "nodes": [
+    {
+      "id": "battery_1",
+      "kind": "battery",
+      "label": "Battery B1",
+      "description": "The battery provides electrical energy for this simple circuit.",
+      "attributes": {}
+    },
+    {
+      "id": "switch_1",
+      "kind": "switch",
+      "label": "Switch S1",
+      "description": "A switch can open or close the circuit. It is initially open.",
+      "attributes": {}
+    },
+    {
+      "id": "bulb_1",
+      "kind": "bulb",
+      "label": "Bulb L1",
+      "description": "The bulb turns on when the simple series circuit is complete.",
+      "attributes": {}
+    }
+  ],
+  "edges": [
+    {
+      "id": "wire_1",
+      "source": "battery_1",
+      "target": "switch_1",
+      "relation": "wire",
+      "description": "A wire connects Battery B1 to Switch S1."
+    },
+    {
+      "id": "wire_2",
+      "source": "switch_1",
+      "target": "bulb_1",
+      "relation": "wire",
+      "description": "A wire connects Switch S1 to Bulb L1."
+    },
+    {
+      "id": "wire_3",
+      "source": "bulb_1",
+      "target": "battery_1",
+      "relation": "wire",
+      "description": "The return wire connects Bulb L1 to Battery B1."
+    }
+  ],
+  "domain_model": {
+    "kind": "series_circuit",
+    "sequence": [
+      "battery_1",
+      "switch_1",
+      "bulb_1"
+    ],
+    "switch_states": {
+      "switch_1": "open"
+    },
+    "loop_wired": true
+  },
+  "warnings": []
+}

@@ -1,0 +1,26 @@
+# Architecture Decisions & Open Risks
+
+## Chosen decisions (2026-11-15)
+
+- D1: **Simple web app**, no auth. Reasons: one solo developer and short hackathon deadline.
+- D2: **Two P0 domains**, flowcharts a stretch goal. Reasons: demonstrated depth beats shallow support of many domains.
+- D3: **Semantic graph + domain-specific payload**. Reasons: reuse accessible explorer while respecting different science semantics.
+- D4: **Single-loop series physics** only. Reasons: honest deterministic simulation within deadline; electrical network analysis is much harder.
+- D5: **Directed food web, food -> consumer** and relationship-change simulation only. Reasons: avoid fabricated population predictions.
+- D6: **Native keyboard widgets first**, no custom graph keyboard shortcuts. Reasons: predictable browser + screen reader support.
+- D7: **Explicit fixture vs live AI provenance**. Reasons: do not misrepresent the capability to judges or end users.
+- D8: **Provider adapter** with Gemini as initial multimodal implementation. Reasons: swap if availability/pricing changes.
+- D9 (Phase 1): **Fixture IDs use the exact `id` values in `fixtures/*.json`** (`physics_series`, `biology_food_web`) rather than hyphenated aliases, matching `contracts/diagram.schema.json` and the bundled JSON files directly.
+- D10 (Phase 1): **`remove_organism` disallows removing the last remaining organism** (`400 INVALID_ACTION`) so that every `updated_diagram` returned by `/api/simulate` remains strictly valid against `contracts/diagram.schema.json` (`nodes.minItems >= 1`).
+
+## Open risks and mitigation
+
+| Risk | Mitigation |
+|---|---|
+| AI mistakes a wire or food web arrow | Require human review, validation; block unsupported simulation |
+| User has no API key / quota | Fixture mode remains useful, but accurately disclose lack of live extraction |
+| Inconsistent AI structured output | Pydantic schema, constrained prompt, robust 422 error |
+| Hard to test with blind students in one week | Test keyboard + available screen reader, disclose lack of formal user studies |
+| Two domains delay final submission | Deliver physics slice first, then biology; stop feature work before video day |
+| Public demo exposes private image | Prefer original/curated non-sensitive diagrams, no persistent upload/logging |
+| Model is changed/deprecated | Configurable `GEMINI_MODEL`, documented provider errors |

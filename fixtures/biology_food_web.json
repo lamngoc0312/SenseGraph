@@ -1,0 +1,85 @@
+{
+  "schema_version": "1.0",
+  "id": "biology_food_web",
+  "title": "Grassland Food Web",
+  "domain": "biology_food_web",
+  "summary": "This simple grassland food web shows energy passing from grass to rabbits and mice, from rabbits to foxes, and from mice to owls. Arrows indicate energy flow from food to consumer.",
+  "source": {
+    "mode": "fixture",
+    "filename": "biology_food_web.png",
+    "provider": null
+  },
+  "review_status": "confirmed",
+  "nodes": [
+    {
+      "id": "grass",
+      "kind": "organism",
+      "label": "Grass",
+      "description": "A producer, eaten by rabbits and mice.",
+      "attributes": {}
+    },
+    {
+      "id": "rabbit",
+      "kind": "organism",
+      "label": "Rabbit",
+      "description": "A herbivore that eats grass and is eaten by foxes.",
+      "attributes": {}
+    },
+    {
+      "id": "mouse",
+      "kind": "organism",
+      "label": "Mouse",
+      "description": "A herbivore that eats grass and is eaten by owls.",
+      "attributes": {}
+    },
+    {
+      "id": "fox",
+      "kind": "organism",
+      "label": "Fox",
+      "description": "A consumer that eats rabbits in this diagram.",
+      "attributes": {}
+    },
+    {
+      "id": "owl",
+      "kind": "organism",
+      "label": "Owl",
+      "description": "A consumer that eats mice in this diagram.",
+      "attributes": {}
+    }
+  ],
+  "edges": [
+    {
+      "id": "feeding_1",
+      "source": "grass",
+      "target": "rabbit",
+      "relation": "energy_to",
+      "description": "Grass provides energy to rabbit."
+    },
+    {
+      "id": "feeding_2",
+      "source": "grass",
+      "target": "mouse",
+      "relation": "energy_to",
+      "description": "Grass provides energy to mouse."
+    },
+    {
+      "id": "feeding_3",
+      "source": "rabbit",
+      "target": "fox",
+      "relation": "energy_to",
+      "description": "Rabbit provides energy to fox."
+    },
+    {
+      "id": "feeding_4",
+      "source": "mouse",
+      "target": "owl",
+      "relation": "energy_to",
+      "description": "Mouse provides energy to owl."
+    }
+  ],
+  "domain_model": {
+    "kind": "food_web",
+    "arrow_convention": "food_to_consumer"
+  },
+  "warnings": []
+}
