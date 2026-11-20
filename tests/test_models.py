@@ -40,7 +40,11 @@ def test_bundled_fixtures_match_json_schema_and_validators(filename: str) -> Non
 def test_fixture_repository_returns_deep_copies() -> None:
     repo = FixtureRepository()
     examples = repo.list_examples()
-    assert [e.id for e in examples] == ["physics_series", "biology_food_web"]
+    assert [e.id for e in examples] == [
+        "physics_series",
+        "biology_food_web",
+        "cs_flowchart",
+    ]
 
     first = repo.get_example("physics_series")
     second = repo.get_example("physics_series")

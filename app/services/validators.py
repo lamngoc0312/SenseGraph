@@ -7,6 +7,11 @@ from typing import Any
 from pydantic import ValidationError
 
 from app.domains.biology import validate_food_web
+from app.domains.flowchart import (
+    ALLOWED_FLOWCHART_NODE_KINDS,
+    ALLOWED_FLOWCHART_RELATIONS,
+    validate_flowchart,
+)
 from app.domains.physics import validate_series_circuit
 from app.models import DiagramDocument, ValidationResponse
 
@@ -77,6 +82,17 @@ def validate_diagram(diagram: DiagramDocument) -> ValidationResponse:
                 structural_errors.append(
                     f"Edge '{edge.id}' has relation '{edge.relation}', expected 'energy_to'."
                 )
+    elif diagram.domain == "cs_flowchart":
+        for node in diagram.nodes:
+            if node.kind not in ALLOWED_FLOWCHART_NODE_KINDS:
+                structural_errors.append(
+                    f"Node '{node.id}' has kind '{node.kind}', not allowed in cs_flowchart."
+                )
+        for edge in diagram.edges:
+            if edge.relation not in ALLOWED_FLOWCHART_RELATIONS:
+                structural_errors.append(
+                    f"Edge '{edge.id}' has relation '{edge.relation}', not allowed in cs_flowchart."
+                )
 
     if structural_errors:
         return ValidationResponse(
@@ -96,13 +112,23 @@ def validate_diagram(diagram: DiagramDocument) -> ValidationResponse:
             errors=physics_result.errors,
         )
 
-    biology_result = validate_food_web(diagram)
-    warnings.extend(biology_result.warnings)
+    if diagram.domain == "biology_food_web":
+        biology_result = validate_food_web(diagram)
+        warnings.extend(biology_result.warnings)
+        return ValidationResponse(
+            valid=True,
+            simulation_ready=biology_result.simulation_ready,
+            warnings=warnings,
+            errors=biology_result.errors,
+        )
+
+    flowchart_result = validate_flowchart(diagram)
+    warnings.extend(flowchart_result.warnings)
     return ValidationResponse(
         valid=True,
-        simulation_ready=biology_result.simulation_ready,
+        simulation_ready=flowchart_result.simulation_ready,
         warnings=warnings,
-        errors=biology_result.errors,
+        errors=flowchart_result.errors,
     )
 
 

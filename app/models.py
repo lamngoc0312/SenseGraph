@@ -8,11 +8,21 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 ID_PATTERN = r"^[A-Za-z][A-Za-z0-9_-]*$"
 
-DomainType = Literal["physics_circuit", "biology_food_web"]
+DomainType = Literal["physics_circuit", "biology_food_web", "cs_flowchart"]
 SourceMode = Literal["fixture", "ai"]
 ReviewStatus = Literal["unreviewed", "confirmed"]
-NodeKind = Literal["battery", "switch", "bulb", "organism"]
-EdgeRelation = Literal["wire", "energy_to"]
+NodeKind = Literal[
+    "battery",
+    "switch",
+    "bulb",
+    "organism",
+    "start",
+    "end",
+    "input",
+    "assignment",
+    "decision",
+]
+EdgeRelation = Literal["wire", "energy_to", "flow", "branch_true", "branch_false"]
 SwitchState = Literal["open", "closed"]
 
 FIXTURE_SOURCE_LABEL = "Pre-annotated demo — no AI used"
@@ -90,8 +100,19 @@ class FoodWebModel(BaseModel):
     arrow_convention: Literal["food_to_consumer"]
 
 
+class FlowchartModel(BaseModel):
+    """Computer Science domain payload for a restricted executable flowchart."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["flowchart"]
+    entry_node: str = Field(..., pattern=ID_PATTERN)
+    inputs: dict[str, int | bool] = Field(default_factory=dict)
+    max_steps: int = Field(default=100, ge=1, le=200)
+
+
 DomainModel = Annotated[
-    SeriesCircuitModel | FoodWebModel,
+    SeriesCircuitModel | FoodWebModel | FlowchartModel,
     Field(discriminator="kind"),
 ]
 
@@ -122,6 +143,10 @@ class DiagramDocument(BaseModel):
         if self.domain == "biology_food_web" and self.domain_model.kind != "food_web":
             raise ValueError(
                 "domain_model.kind must be 'food_web' when domain is 'biology_food_web'."
+            )
+        if self.domain == "cs_flowchart" and self.domain_model.kind != "flowchart":
+            raise ValueError(
+                "domain_model.kind must be 'flowchart' when domain is 'cs_flowchart'."
             )
         return self
 
@@ -191,6 +216,37 @@ class DiagramStateResponse(BaseModel):
     bulb_states: dict[str, Literal["on", "off"]] = Field(default_factory=dict)
     organism_count: int | None = None
     relationship_count: int | None = None
+    entry_node: str | None = None
+    flowchart_inputs: dict[str, int | bool] = Field(default_factory=dict)
+    max_steps: int | None = None
+
+
+class FlowchartTraceStep(BaseModel):
+    step_index: int
+    node_id: str
+    node_label: str
+    node_kind: str
+    action_description: str
+    branch_taken: Literal["true", "false"] | None = None
+    variables: dict[str, int | bool] = Field(default_factory=dict)
+    next_node_id: str | None = None
+
+
+class FlowchartTraceRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    diagram: DiagramDocument
+    inputs: dict[str, int | bool] | None = None
+    max_steps: int | None = Field(default=None, ge=1, le=200)
+
+
+class FlowchartTraceResponse(BaseModel):
+    status: Literal["completed", "max_steps_exceeded"]
+    steps_executed: int
+    max_steps: int
+    final_variables: dict[str, int | bool] = Field(default_factory=dict)
+    announcement: str
+    steps: list[FlowchartTraceStep] = Field(default_factory=list)
 
 
 # --- Guided Learning Lab (Phase 5) contracts ---

@@ -16,6 +16,7 @@ from app.models import (
     DiagramDocument,
     DomainType,
     Edge,
+    FlowchartModel,
     FoodWebModel,
     Node,
     SeriesCircuitModel,
@@ -38,6 +39,8 @@ PIL_FORMAT_TO_MIME: dict[str, str] = {
 }
 
 ALLOWED_PHYSICS_KINDS = frozenset({"battery", "switch", "bulb"})
+ALLOWED_FLOWCHART_KINDS = frozenset({"start", "end", "input", "assignment", "decision"})
+ALLOWED_FLOWCHART_RELATIONS = frozenset({"flow", "branch_true", "branch_false"})
 ALLOWED_BIOLOGY_ALIASES = frozenset(
     {
         "",
@@ -305,6 +308,37 @@ def build_extraction_prompt(domain: DomainType) -> str:
             "}\n"
         )
 
+    if domain == "cs_flowchart":
+        return (
+            common_rules
+            + "\nDOMAIN: cs_flowchart (Restricted Executable Flowchart).\n"
+            "Allowed node kinds: 'start', 'end', 'input', 'assignment', 'decision'.\n"
+            "Allowed edge relations: 'flow', 'branch_true', 'branch_false'.\n"
+            "- Every 'input' node must include attributes.variable (identifier).\n"
+            "- Every 'assignment' node must include attributes.variable and attributes.expression "
+            "(simple integer/boolean arithmetic only: +, -, *, //, %, parentheses).\n"
+            "- Every 'decision' node must include attributes.condition (simple comparison/boolean: "
+            "==, !=, <, <=, >, >=, and, or, not) and exactly one 'branch_true' and one 'branch_false' edge.\n"
+            "- If any branch label (True/False), arrow direction, or expression is ambiguous, "
+            "add a clear warning for manual review. Never invent code or unsupported instructions.\n"
+            "JSON shape:\n"
+            "{\n"
+            '  "title": "Short accessible title",\n'
+            '  "summary": "Plain-language overview of the flowchart",\n'
+            '  "nodes": [{"id": "start_1", "kind": "start|end|input|assignment|decision", '
+            '"label": "Start", "description": "Short role", "attributes": {}}],\n'
+            '  "edges": [{"id": "flow_1", "source": "start_1", "target": "input_1", '
+            '"relation": "flow|branch_true|branch_false", "description": "Arrow description"}],\n'
+            '  "domain_model": {\n'
+            '    "kind": "flowchart",\n'
+            '    "entry_node": "start_1",\n'
+            '    "inputs": {"n": 3},\n'
+            '    "max_steps": 100\n'
+            "  },\n"
+            '  "warnings": []\n'
+            "}\n"
+        )
+
     return (
         common_rules
         + "\nDOMAIN: biology_food_web (Directed Food Web — Energy Flow).\n"
@@ -397,6 +431,13 @@ def normalize_extraction_proposal(
                 )
                 continue
             kind = raw_kind
+        elif domain == "cs_flowchart":
+            if raw_kind not in ALLOWED_FLOWCHART_KINDS:
+                unsupported_nodes.append(
+                    f"'{label}' has unsupported flowchart block type '{raw_kind or 'unknown'}'"
+                )
+                continue
+            kind = raw_kind
         else:
             if raw_kind in ALLOWED_BIOLOGY_ALIASES:
                 kind = "organism"
@@ -428,6 +469,12 @@ def normalize_extraction_proposal(
             raise ExtractionInvalidError(
                 "Unsupported or unrecognized physics component(s) were detected. "
                 "Physics P0 supports only 1 battery, 1 switch, and 1–2 bulbs in a single series loop.",
+                details=unsupported_nodes,
+            )
+        if domain == "cs_flowchart":
+            raise ExtractionInvalidError(
+                "Unsupported flowchart shape(s) were detected. "
+                "Supported shapes are: start, end, input, assignment, and decision.",
                 details=unsupported_nodes,
             )
         raise ExtractionInvalidError(
@@ -467,13 +514,26 @@ def normalize_extraction_proposal(
             )
             continue
 
+        if domain == "cs_flowchart":
+            raw_rel = str(item.get("relation") or "flow").strip().lower()
+            if raw_rel in ALLOWED_FLOWCHART_RELATIONS:
+                edge_rel = raw_rel
+            else:
+                edge_rel = "flow"
+                warnings.append(
+                    f"Ambiguous branch label '{raw_rel}' on edge '{eid}'; "
+                    "please verify whether this edge is flow, branch_true, or branch_false."
+                )
+        else:
+            edge_rel = expected_relation
+
         desc = str(item.get("description") or f"{src} to {tgt}").strip()
         edges.append(
             Edge(
                 id=eid,
                 source=src,
                 target=tgt,
-                relation=expected_relation,  # type: ignore[arg-type]
+                relation=edge_rel,  # type: ignore[arg-type]
                 description=desc,
             )
         )
@@ -530,11 +590,31 @@ def normalize_extraction_proposal(
                 "No switch was clearly identified; add or correct component types before confirming."
             )
 
-        domain_model: SeriesCircuitModel | FoodWebModel = SeriesCircuitModel(
+        domain_model: SeriesCircuitModel | FoodWebModel | FlowchartModel = SeriesCircuitModel(
             kind="series_circuit",
             sequence=mapped_seq,
             switch_states=switch_states,  # type: ignore[arg-type]
             loop_wired=False,  # Always derived by backend validator below.
+        )
+    elif domain == "cs_flowchart":
+        raw_entry = str(raw_dm.get("entry_node") or "")
+        start_nodes = [n.id for n in nodes if n.kind == "start"]
+        entry_node = id_map.get(raw_entry) or (start_nodes[0] if start_nodes else nodes[0].id)
+        raw_inputs = raw_dm.get("inputs") if isinstance(raw_dm.get("inputs"), dict) else {}
+        clean_inputs: dict[str, int | bool] = {}
+        for k, v in raw_inputs.items():
+            if isinstance(v, (int, bool)):
+                clean_inputs[str(k)] = v
+        raw_max = raw_dm.get("max_steps", 100)
+        max_steps = int(raw_max) if isinstance(raw_max, int) and 1 <= raw_max <= 200 else 100
+        domain_model = FlowchartModel(
+            kind="flowchart",
+            entry_node=entry_node,
+            inputs=clean_inputs,
+            max_steps=max_steps,
+        )
+        warnings.append(
+            "Verify all True/False branch labels, expressions, and initial input values before confirming."
         )
     else:
         domain_model = FoodWebModel(

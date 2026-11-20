@@ -12,6 +12,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.domains import DomainSimulationError
 from app.domains.biology import remove_organism
+from app.domains.flowchart import execute_flowchart
 from app.domains.physics import evaluate_circuit_state, toggle_switch
 from app.models import (
     DiagramDocument,
@@ -19,6 +20,9 @@ from app.models import (
     ErrorDetail,
     ErrorEnvelope,
     ExampleSummary,
+    FlowchartModel,
+    FlowchartTraceRequest,
+    FlowchartTraceResponse,
     HealthResponse,
     LearningChallengeSetResponse,
     LearningEvaluateRequest,
@@ -226,10 +230,26 @@ def create_app(
                 switch_states=circuit_state.switch_states,
                 bulb_states=circuit_state.bulb_states,
             )
+        if diagram.domain == "biology_food_web":
+            return DiagramStateResponse(
+                domain="biology_food_web",
+                organism_count=len(diagram.nodes),
+                relationship_count=len(diagram.edges),
+            )
+        assert isinstance(diagram.domain_model, FlowchartModel)
         return DiagramStateResponse(
-            domain="biology_food_web",
-            organism_count=len(diagram.nodes),
-            relationship_count=len(diagram.edges),
+            domain="cs_flowchart",
+            entry_node=diagram.domain_model.entry_node,
+            flowchart_inputs=dict(diagram.domain_model.inputs),
+            max_steps=diagram.domain_model.max_steps,
+        )
+
+    @application.post("/api/flowchart/trace", response_model=FlowchartTraceResponse)
+    def post_flowchart_trace(request: FlowchartTraceRequest) -> FlowchartTraceResponse:
+        return execute_flowchart(
+            diagram=request.diagram,
+            initial_inputs=request.inputs,
+            max_steps=request.max_steps,
         )
 
     @application.get("/api/examples", response_model=list[ExampleSummary])

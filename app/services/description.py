@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from app.domains.biology import build_food_web_summary, get_organism_relations
+from app.domains.flowchart import build_flowchart_summary
 from app.domains.physics import build_circuit_summary, evaluate_circuit_state
 from app.models import DiagramDocument
 
@@ -13,6 +14,8 @@ def describe_diagram(diagram: DiagramDocument) -> str:
         return build_circuit_summary(diagram)
     if diagram.domain == "biology_food_web":
         return build_food_web_summary(diagram)
+    if diagram.domain == "cs_flowchart":
+        return build_flowchart_summary(diagram)
     return diagram.summary
 
 

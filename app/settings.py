@@ -13,7 +13,11 @@ FIXTURES_DIR = PROJECT_ROOT / "fixtures"
 CONTRACTS_DIR = PROJECT_ROOT / "contracts"
 DIAGRAM_SCHEMA_PATH = CONTRACTS_DIR / "diagram.schema.json"
 
-SUPPORTED_DOMAINS: tuple[str, ...] = ("physics_circuit", "biology_food_web")
+SUPPORTED_DOMAINS: tuple[str, ...] = (
+    "physics_circuit",
+    "biology_food_web",
+    "cs_flowchart",
+)
 
 
 @dataclass(frozen=True)

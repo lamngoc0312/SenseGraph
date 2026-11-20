@@ -344,6 +344,32 @@ h4 {
   border-top: 5px solid var(--accent-teal);
 }
 
+.module-card-cs {
+  border-top: 5px solid #6d28d9;
+}
+
+.flowchart-inputs-block {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.flowchart-trace-panel {
+  margin-bottom: 1rem;
+  padding: 1rem;
+  background-color: var(--bg-callout);
+  border: 2px solid var(--border-accent);
+  border-radius: var(--radius-sm);
+}
+
+.svg-edge-label {
+  font-size: 11px;
+  font-weight: 800;
+  fill: #1e3a8a;
+  text-anchor: middle;
+}
+
 .module-card h3 {
   margin-top: 0.5rem;
   font-size: 1.3rem;

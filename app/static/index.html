@@ -96,6 +96,7 @@
               <select id="analyze-domain-select" name="domain" required>
                 <option value="physics_circuit">Physics — Single-Loop Series Circuit</option>
                 <option value="biology_food_web">Biology — Directed Food Web</option>
+                <option value="cs_flowchart">Computer Science — Restricted Flowchart</option>
               </select>
               <p class="field-hint">
                 Choosing the domain helps the AI apply strict scientific constraints.
@@ -265,6 +266,9 @@
           </button>
           <button type="button" id="switch-biology-btn" class="btn btn-ghost">
             Load Biology Food Web
+          </button>
+          <button type="button" id="switch-cs-btn" class="btn btn-ghost">
+            Load CS Flowchart
           </button>
         </div>
       </div>
@@ -493,8 +497,29 @@
             <h3 id="experiment-heading">Experiment Controls</h3>
             <p id="experiment-guidance" class="panel-hint"></p>
 
+            <div id="flowchart-inputs-block" class="flowchart-inputs-block" hidden>
+              <!-- Populated dynamically for cs_flowchart initial variable inputs -->
+            </div>
+
             <div id="experiment-actions" class="experiment-actions">
               <!-- Domain action button + Reset Experiment button -->
+            </div>
+
+            <div id="flowchart-trace-panel" class="flowchart-trace-panel" hidden>
+              <div class="lab-header">
+                <h4 id="trace-step-heading">Execution Trace</h4>
+                <span id="trace-step-counter" class="badge badge-domain">Step 1 of 1</span>
+              </div>
+              <p id="trace-step-action" class="feedback-announcement"></p>
+              <dl id="trace-step-vars" class="attributes-list" aria-label="Current variable environment"></dl>
+              <div class="tour-controls" role="group" aria-label="Trace step navigation">
+                <button type="button" id="trace-prev-btn" class="btn btn-secondary btn-sm">
+                  Previous step
+                </button>
+                <button type="button" id="trace-next-btn" class="btn btn-primary btn-sm">
+                  Next step
+                </button>
+              </div>
             </div>
 
             <p id="experiment-limitation" class="limitation-note"></p>

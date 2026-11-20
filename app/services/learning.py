@@ -13,10 +13,12 @@ from app.domains.biology import (
     get_organism_relations,
     remove_organism,
 )
+from app.domains.flowchart import execute_flowchart
 from app.domains.physics import evaluate_circuit_state, toggle_switch
 from app.models import (
     ChallengeOption,
     DiagramDocument,
+    FlowchartModel,
     LearningChallenge,
     LearningChallengeSetResponse,
     LearningEvaluationResponse,
@@ -640,6 +642,179 @@ def _evaluate_biology_challenge(
     )
 
 
+# --- Flowchart challenge generation & evaluation (Phase 8) ---
+
+
+def _build_flowchart_challenges(diagram: DiagramDocument) -> list[LearningChallenge]:
+    if not isinstance(diagram.domain_model, FlowchartModel):
+        return []
+    trace = execute_flowchart(diagram)
+    inputs_str = (
+        ", ".join(f"{k} = {v}" for k, v in diagram.domain_model.inputs.items()) or "default values"
+    )
+    challenges: list[LearningChallenge] = []
+
+    first_decision = next((s for s in trace.steps if s.node_kind == "decision"), None)
+    if first_decision is not None:
+        challenges.append(
+            LearningChallenge(
+                id=f"flowchart_branch:{first_decision.node_id}",
+                template="flowchart_predict_branch",
+                title=f"Predict Branch at '{first_decision.node_label}'",
+                prompt=(
+                    f"With initial inputs ({inputs_str}), when execution first reaches "
+                    f"decision '{first_decision.node_label}', which branch will it take?"
+                ),
+                hint=(
+                    "Trace the variable values up to this decision block and evaluate "
+                    "its condition using the restricted comparison rules."
+                ),
+                input_type="single_choice",
+                options=[
+                    ChallengeOption(id="true", label="TRUE branch"),
+                    ChallengeOption(id="false", label="FALSE branch"),
+                ],
+                action_type="inspect_only",
+                target_id=first_decision.node_id,
+                scientific_note=(
+                    "Evaluated strictly by the safe restricted flowchart interpreter "
+                    "(no eval/exec, bounded steps)."
+                ),
+            )
+        )
+
+    if trace.status == "completed" and trace.final_variables:
+        last_var = list(trace.final_variables.keys())[-1]
+        final_val = trace.final_variables[last_var]
+        if type(final_val) is int:
+            candidate_vals = sorted({final_val, final_val + 1, max(0, final_val - 1)})
+            options = [
+                ChallengeOption(id=str(v), label=f"{last_var} = {v}")
+                for v in candidate_vals
+            ]
+        else:
+            options = [
+                ChallengeOption(id="True", label=f"{last_var} = True"),
+                ChallengeOption(id="False", label=f"{last_var} = False"),
+            ]
+        challenges.append(
+            LearningChallenge(
+                id=f"flowchart_final:{last_var}",
+                template="flowchart_predict_final_value",
+                title=f"Predict Final Value of '{last_var}'",
+                prompt=(
+                    f"When this flowchart runs to completion with initial inputs ({inputs_str}), "
+                    f"what is the final value of variable '{last_var}'?"
+                ),
+                hint="Step through each assignment and loop condition carefully.",
+                input_type="single_choice",
+                options=options,
+                action_type="inspect_only",
+                target_id=diagram.domain_model.entry_node,
+                scientific_note=(
+                    "Computed deterministically from the traced execution environment."
+                ),
+            )
+        )
+
+    return challenges
+
+
+def _evaluate_flowchart_challenge(
+    diagram: DiagramDocument,
+    challenge_id: str,
+    selected_option_ids: list[str],
+) -> LearningEvaluationResponse:
+    parts = challenge_id.split(":", 1)
+    if len(parts) != 2:
+        raise DomainSimulationError(
+            code="INVALID_CHALLENGE",
+            message=f"Unknown flowchart challenge '{challenge_id}'.",
+            status_code=400,
+        )
+    kind_key, target = parts
+    trace = execute_flowchart(diagram)
+
+    if kind_key == "flowchart_branch":
+        step = next(
+            (s for s in trace.steps if s.node_id == target and s.node_kind == "decision"),
+            None,
+        )
+        if step is None or step.branch_taken is None:
+            raise DomainSimulationError(
+                code="UNKNOWN_TARGET",
+                message=f"Decision '{target}' was not reached during execution.",
+                status_code=400,
+            )
+        expected = step.branch_taken
+        selected_clean = [s.strip().lower() for s in selected_option_ids if s.strip()]
+        correct = selected_clean == [expected]
+        vars_desc = ", ".join(f"{k}={v}" for k, v in step.variables.items()) or "none"
+
+        summary = (
+            f"Correct! At step {step.step_index}, '{step.node_label}' took the {expected.upper()} branch."
+            if correct
+            else f"Not quite. At step {step.step_index}, '{step.node_label}' took the {expected.upper()} branch."
+        )
+        explanation = (
+            f"At step {step.step_index}, the variable environment was ({vars_desc}). "
+            f"{step.action_description}"
+        )
+        return LearningEvaluationResponse(
+            challenge_id=challenge_id,
+            correct=correct,
+            selected_option_ids=selected_clean,
+            expected_option_ids=[expected],
+            expected_labels=[f"{expected.upper()} branch"],
+            summary=summary,
+            explanation=explanation,
+            evidence=[
+                f"Step {step.step_index}: {step.action_description}",
+                f"Variables at decision: {vars_desc}",
+                f"Trace outcome: {trace.announcement}",
+            ],
+            related_node_ids=[step.node_id] + ([step.next_node_id] if step.next_node_id else []),
+            simulation_result=None,
+        )
+
+    if kind_key == "flowchart_final":
+        if target not in trace.final_variables:
+            raise DomainSimulationError(
+                code="UNKNOWN_TARGET",
+                message=f"Variable '{target}' was not found in final execution state.",
+                status_code=400,
+            )
+        expected = str(trace.final_variables[target])
+        selected_clean = [s.strip() for s in selected_option_ids if s.strip()]
+        correct = selected_clean == [expected]
+        summary = (
+            f"Correct! After {trace.steps_executed} steps, {target} = {expected}."
+            if correct
+            else f"Not quite. After {trace.steps_executed} steps, {target} = {expected}."
+        )
+        explanation = (
+            f"{trace.announcement} Inspect the execution trace to verify each assignment and branch."
+        )
+        return LearningEvaluationResponse(
+            challenge_id=challenge_id,
+            correct=correct,
+            selected_option_ids=selected_clean,
+            expected_option_ids=[expected],
+            expected_labels=[f"{target} = {expected}"],
+            summary=summary,
+            explanation=explanation,
+            evidence=[s.action_description for s in trace.steps[-4:]],
+            related_node_ids=[diagram.domain_model.entry_node],  # type: ignore[union-attr]
+            simulation_result=None,
+        )
+
+    raise DomainSimulationError(
+        code="INVALID_CHALLENGE",
+        message=f"Unsupported flowchart challenge '{challenge_id}'.",
+        status_code=400,
+    )
+
+
 # --- Public API ---
 
 
@@ -649,8 +824,10 @@ def generate_challenges(diagram: DiagramDocument) -> LearningChallengeSetRespons
 
     if diagram.domain == "physics_circuit":
         challenges = _build_physics_challenges(diagram)
-    else:
+    elif diagram.domain == "biology_food_web":
         challenges = _build_biology_challenges(diagram)
+    else:
+        challenges = _build_flowchart_challenges(diagram)
 
     if not challenges:
         return LearningChallengeSetResponse(
@@ -681,4 +858,6 @@ def evaluate_challenge(
 
     if diagram.domain == "physics_circuit":
         return _evaluate_physics_challenge(diagram, challenge_id, selected_option_ids)
-    return _evaluate_biology_challenge(diagram, challenge_id, selected_option_ids)
+    if diagram.domain == "biology_food_web":
+        return _evaluate_biology_challenge(diagram, challenge_id, selected_option_ids)
+    return _evaluate_flowchart_challenge(diagram, challenge_id, selected_option_ids)

@@ -5,7 +5,7 @@
 - **Hackathon:** STEM2Connect AI Hackathon 2026
 - **Primary Track:** Education · **Related Social Impact:** Community Impact
 - **Stack:** Python 3.11–3.13, FastAPI, Pydantic v2, Vanilla HTML5/CSS/JS, Google Gemini (`google-genai`), Pytest
-- **Release Candidate:** `v0.7.0-rc1` (Phases 1–7 complete; 54 automated tests passing)
+- **Release Candidate:** `v0.8.0-dev` (Phases 1–8 complete: Physics P0, Biology P0, and Post-Hackathon Computer Science Flowchart Explorer)
 
 ---
 
@@ -47,6 +47,7 @@ SenseGraph turns supported STEM diagrams into an editable, verifiable semantic g
 | **Human Review UI** | Lets users inspect warnings/errors, edit labels/types/edges, swap Biology arrows, and explicitly confirm | Simulation stays blocked (`403`/`422`) until valid and confirmed |
 | **Physics Engine (`app/domains/physics.py`)** | Evaluates qualitative single-loop series circuits (1 battery, 1 switch, 1–2 bulbs) | Qualitative ON/OFF only; no voltage, current, resistance, or parallel circuits |
 | **Biology Engine (`app/domains/biology.py`)** | Queries directed `food/prey -> consumer/predator` relations/paths and removes an organism + incident edges | Graph relationship changes only; explicitly disclaims extinction or population predictions |
+| **CS Flowchart Engine (`app/domains/flowchart.py`)** | Parses and executes restricted integer/boolean assignments, True/False decisions, and finite loops step-by-step | Explicit recursive-descent parser only (never `eval`/`exec`); bounded to `<= 200` steps & `0.5s` timeout |
 | **Learning Lab (`app/services/learning.py`)** | Generates & grades Predict → Experiment → Explain challenges directly from Python engines | Zero LLM grading; session-only progress (no accounts/DB) |
 
 ---

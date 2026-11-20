@@ -25,6 +25,14 @@
       cardClass: "module-card-biology",
       buttonClass: "btn-teal",
     },
+    cs_flowchart: {
+      heading: "Computer Science Explorer",
+      summary:
+        "Step through a restricted executable flowchart with assignments, True/False decisions, and a finite loop. Enter initial inputs and inspect every step and variable change safely.",
+      buttonLabel: "Explore Example Flowchart",
+      cardClass: "module-card-cs",
+      buttonClass: "btn-primary",
+    },
   };
 
   const state = {
@@ -54,6 +62,10 @@
     tourText: "",
     ttsSpeaking: false,
     ttsPaused: false,
+    // Phase 8: Flowchart Trace State
+    flowchartTrace: null,
+    flowchartStepIdx: 0,
+    flowchartInputValues: {},
     isBusy: false,
   };
 
@@ -104,6 +116,7 @@
     backToHomeBtn: document.getElementById("back-to-home-btn"),
     switchPhysicsBtn: document.getElementById("switch-physics-btn"),
     switchBiologyBtn: document.getElementById("switch-biology-btn"),
+    switchCsBtn: document.getElementById("switch-cs-btn"),
     modeExploreBtn: document.getElementById("mode-explore-btn"),
     modeLabBtn: document.getElementById("mode-lab-btn"),
     learningLabPanel: document.getElementById("learning-lab-panel"),
@@ -165,7 +178,14 @@
     selectedRelationships: document.getElementById("selected-relationships"),
 
     experimentGuidance: document.getElementById("experiment-guidance"),
+    flowchartInputsBlock: document.getElementById("flowchart-inputs-block"),
     experimentActions: document.getElementById("experiment-actions"),
+    flowchartTracePanel: document.getElementById("flowchart-trace-panel"),
+    traceStepCounter: document.getElementById("trace-step-counter"),
+    traceStepAction: document.getElementById("trace-step-action"),
+    traceStepVars: document.getElementById("trace-step-vars"),
+    tracePrevBtn: document.getElementById("trace-prev-btn"),
+    traceNextBtn: document.getElementById("trace-next-btn"),
     experimentLimitation: document.getElementById("experiment-limitation"),
 
     allRelationsList: document.getElementById("all-relations-list"),
@@ -263,6 +283,7 @@
   function formatDomainLabel(domain) {
     if (domain === "physics_circuit") return "Physics — Series Circuit";
     if (domain === "biology_food_web") return "Biology — Food Web";
+    if (domain === "cs_flowchart") return "Computer Science — Flowchart";
     return domain;
   }
 
@@ -580,7 +601,9 @@
       const allowedKinds =
         draft.domain === "physics_circuit"
           ? ["battery", "switch", "bulb"]
-          : ["organism"];
+          : draft.domain === "cs_flowchart"
+            ? ["start", "end", "input", "assignment", "decision"]
+            : ["organism"];
       for (const k of allowedKinds) {
         const opt = document.createElement("option");
         opt.value = k;
@@ -716,6 +739,31 @@
       tgtField.appendChild(tgtLbl);
       tgtField.appendChild(tgtSelect);
       row.appendChild(tgtField);
+
+      if (draft.domain === "cs_flowchart") {
+        const relField = document.createElement("div");
+        relField.className = "form-field";
+        const relLbl = document.createElement("label");
+        const relId = `review-edge-rel-${index}`;
+        relLbl.setAttribute("for", relId);
+        relLbl.textContent = "Branch / Flow";
+        const relSel = document.createElement("select");
+        relSel.id = relId;
+        for (const r of ["flow", "branch_true", "branch_false"]) {
+          const opt = document.createElement("option");
+          opt.value = r;
+          opt.textContent = r;
+          opt.selected = edge.relation === r;
+          relSel.appendChild(opt);
+        }
+        relSel.addEventListener("change", () => {
+          edge.relation = relSel.value;
+          markDraftDirty();
+        });
+        relField.appendChild(relLbl);
+        relField.appendChild(relSel);
+        row.appendChild(relField);
+      }
 
       // Description
       const descField = document.createElement("div");
@@ -1002,6 +1050,9 @@
       state.reviewValidation = null;
       state.explorerMode = "explore";
       state.tourStep = "overview";
+      state.flowchartTrace = null;
+      state.flowchartStepIdx = 0;
+      state.flowchartInputValues = {};
       stopTts();
       resetLabState();
       await loadLabChallengesForBaseline();
@@ -1731,12 +1782,23 @@
         y2: y2.toFixed(1),
         class: lineClasses.join(" "),
       };
-      if (diagram.domain === "biology_food_web") {
+      if (diagram.domain === "biology_food_web" || diagram.domain === "cs_flowchart") {
         lineAttrs["marker-end"] = isHighlighted
           ? "url(#arrow-head-highlight)"
           : "url(#arrow-head)";
       }
       svg.appendChild(createSvgEl("line", lineAttrs));
+
+      if (
+        diagram.domain === "cs_flowchart" &&
+        (edge.relation === "branch_true" || edge.relation === "branch_false")
+      ) {
+        const mx = (x1 + x2) / 2;
+        const my = (y1 + y2) / 2 - 6;
+        const lbl = createSvgEl("text", { x: mx.toFixed(1), y: my.toFixed(1), class: "svg-edge-label" });
+        lbl.textContent = edge.relation === "branch_true" ? "TRUE" : "FALSE";
+        svg.appendChild(lbl);
+      }
     }
 
     // Render nodes
@@ -1843,6 +1905,20 @@
         ? state.baselineDiagram.nodes.length - diagram.nodes.length
         : 0;
       stats.push({ label: "Removed in Experiment", value: String(removedCount) });
+    } else if (diagram.domain === "cs_flowchart") {
+      stats.push({ label: "Flowchart Blocks", value: String(diagram.nodes.length) });
+      stats.push({ label: "Connections", value: String(diagram.edges.length) });
+      const maxSteps =
+        (state.backendState && state.backendState.max_steps) ||
+        (diagram.domain_model && diagram.domain_model.max_steps) ||
+        100;
+      stats.push({ label: "Max Steps Limit", value: String(maxSteps) });
+      if (state.flowchartTrace) {
+        stats.push({
+          label: "Trace Status",
+          value: `${state.flowchartTrace.status} (${state.flowchartTrace.steps_executed} steps)`,
+        });
+      }
     }
 
     for (const stat of stats) {
@@ -2094,6 +2170,50 @@
 
       dom.selectedRelationships.appendChild(inGroup);
       dom.selectedRelationships.appendChild(outGroup);
+    } else if (diagram.domain === "cs_flowchart") {
+      const outgoing = diagram.edges
+        .filter((e) => e.source === node.id && nodeMap.has(e.target))
+        .map((e) => {
+          const branchTag =
+            e.relation === "branch_true"
+              ? "[TRUE branch] "
+              : e.relation === "branch_false"
+                ? "[FALSE branch] "
+                : "";
+          return {
+            neighbor: nodeMap.get(e.target),
+            description: `${branchTag}Proceeds to ${nodeMap.get(e.target).label}. ${e.description}`,
+          };
+        });
+      const incoming = diagram.edges
+        .filter((e) => e.target === node.id && nodeMap.has(e.source))
+        .map((e) => ({
+          neighbor: nodeMap.get(e.source),
+          description: `Reached from ${nodeMap.get(e.source).label} (${e.relation}).`,
+        }));
+
+      const outGroup = document.createElement("div");
+      outGroup.className = "relation-group";
+      const outTitle = document.createElement("p");
+      outTitle.className = "relation-group-title";
+      outTitle.textContent = "Next step(s) / branches";
+      outGroup.appendChild(outTitle);
+      outGroup.appendChild(
+        buildNeighborList(outgoing, "Terminal block (no outgoing flow).")
+      );
+
+      const inGroup = document.createElement("div");
+      inGroup.className = "relation-group";
+      const inTitle = document.createElement("p");
+      inTitle.className = "relation-group-title";
+      inTitle.textContent = "Incoming flow from";
+      inGroup.appendChild(inTitle);
+      inGroup.appendChild(
+        buildNeighborList(incoming, "Entry point (no incoming flow).")
+      );
+
+      dom.selectedRelationships.appendChild(outGroup);
+      dom.selectedRelationships.appendChild(inGroup);
     }
   }
 
@@ -2154,6 +2274,61 @@
 
       dom.experimentLimitation.textContent =
         "Scientific note: Removing an organism updates only the feeding relationships shown in this diagram. It does not predict extinction or population changes.";
+      dom.flowchartInputsBlock.hidden = true;
+      dom.flowchartTracePanel.hidden = true;
+    } else if (diagram.domain === "cs_flowchart") {
+      dom.experimentGuidance.textContent =
+        "Set initial integer or boolean input values and run the safe restricted Python interpreter to step forward and backward through execution.";
+
+      dom.flowchartInputsBlock.textContent = "";
+      const inputDefs = (diagram.domain_model && diagram.domain_model.inputs) || {};
+      const inputKeys = Object.keys(inputDefs);
+      if (inputKeys.length > 0) {
+        for (const key of inputKeys) {
+          const field = document.createElement("div");
+          field.className = "form-field";
+          const lbl = document.createElement("label");
+          const inputId = `fc-input-${key}`;
+          lbl.setAttribute("for", inputId);
+          lbl.textContent = `Initial value for ${key}`;
+          const inp = document.createElement("input");
+          inp.type = "text";
+          inp.id = inputId;
+          const currentVal =
+            key in state.flowchartInputValues
+              ? state.flowchartInputValues[key]
+              : inputDefs[key];
+          inp.value = String(currentVal);
+          inp.addEventListener("input", () => {
+            state.flowchartInputValues[key] = inp.value;
+          });
+          field.appendChild(lbl);
+          field.appendChild(inp);
+          dom.flowchartInputsBlock.appendChild(field);
+        }
+        dom.flowchartInputsBlock.hidden = false;
+      } else {
+        dom.flowchartInputsBlock.hidden = true;
+      }
+
+      const runBtn = document.createElement("button");
+      runBtn.type = "button";
+      runBtn.className = "btn btn-primary";
+      runBtn.dataset.action = "run_flowchart";
+      runBtn.disabled = state.isBusy;
+      runBtn.textContent = "Run Trace";
+      runBtn.addEventListener("click", runFlowchartTrace);
+      dom.experimentActions.appendChild(runBtn);
+
+      renderFlowchartTracePanel();
+
+      dom.experimentLimitation.textContent =
+        "Safety boundary: Uses a restricted integer/boolean expression parser (no eval/exec) with bounded step limits to halt infinite loops safely.";
+    }
+
+    if (diagram.domain === "physics_circuit") {
+      dom.flowchartInputsBlock.hidden = true;
+      dom.flowchartTracePanel.hidden = true;
     }
 
     const resetBtn = document.createElement("button");
@@ -2235,6 +2410,9 @@
     if (diagram.domain === "biology_food_web") {
       dom.domainConvention.textContent =
         "Arrow convention: Each directed arrow points from food/prey to its consumer/predator (energy flow).";
+    } else if (diagram.domain === "cs_flowchart") {
+      dom.domainConvention.textContent =
+        "Flowchart convention: Execution starts at Start, evaluates restricted integer/boolean assignments and True/False decisions, and halts at End or max_steps.";
     } else {
       dom.domainConvention.textContent =
         "Circuit convention: Wires connect components in one continuous series loop. Bulbs turn on only when the loop is complete and the switch is closed.";
@@ -2281,6 +2459,116 @@
     }
   }
 
+  function renderFlowchartTracePanel() {
+    const trace = state.flowchartTrace;
+    if (!trace || !trace.steps || trace.steps.length === 0) {
+      dom.flowchartTracePanel.hidden = true;
+      return;
+    }
+    dom.flowchartTracePanel.hidden = false;
+    const step = trace.steps[state.flowchartStepIdx] || trace.steps[0];
+    dom.traceStepCounter.textContent = `Step ${step.step_index} of ${trace.steps.length} (${trace.status})`;
+    dom.traceStepAction.textContent = `[${step.node_label}] ${step.action_description}`;
+
+    dom.traceStepVars.textContent = "";
+    const entries = Object.entries(step.variables || {});
+    if (entries.length === 0) {
+      const dt = document.createElement("dt");
+      dt.textContent = "Variables";
+      const dd = document.createElement("dd");
+      dd.textContent = "None initialized yet";
+      dom.traceStepVars.appendChild(dt);
+      dom.traceStepVars.appendChild(dd);
+    } else {
+      for (const [k, v] of entries) {
+        const dt = document.createElement("dt");
+        dt.textContent = k;
+        const dd = document.createElement("dd");
+        dd.textContent = String(v);
+        dom.traceStepVars.appendChild(dt);
+        dom.traceStepVars.appendChild(dd);
+      }
+    }
+
+    dom.tracePrevBtn.disabled = state.flowchartStepIdx <= 0;
+    dom.traceNextBtn.disabled = state.flowchartStepIdx >= trace.steps.length - 1;
+  }
+
+  function stepFlowchartTrace(delta) {
+    if (!state.flowchartTrace || !state.flowchartTrace.steps.length) return;
+    const nextIdx = Math.min(
+      Math.max(0, state.flowchartStepIdx + delta),
+      state.flowchartTrace.steps.length - 1
+    );
+    state.flowchartStepIdx = nextIdx;
+    const step = state.flowchartTrace.steps[nextIdx];
+    state.selectedNodeId = step.node_id;
+    renderComponentList(state.currentDiagram);
+    renderSelectedDetail(state.currentDiagram);
+    renderSemanticSvgGraph(state.currentDiagram);
+    renderFlowchartTracePanel();
+    const varsText = Object.entries(step.variables || {})
+      .map(([k, v]) => `${k}=${v}`)
+      .join(", ");
+    announce(
+      `Step ${step.step_index} of ${state.flowchartTrace.steps.length}: ${step.action_description} Variables: ${varsText || "none"}.`
+    );
+  }
+
+  async function runFlowchartTrace() {
+    if (!state.currentDiagram || state.isBusy) return;
+    clearError();
+
+    const parsedInputs = {};
+    const defaults = (state.currentDiagram.domain_model && state.currentDiagram.domain_model.inputs) || {};
+    for (const key of Object.keys(defaults)) {
+      const raw = String(
+        key in state.flowchartInputValues ? state.flowchartInputValues[key] : defaults[key]
+      ).trim();
+      if (raw.toLowerCase() === "true") {
+        parsedInputs[key] = true;
+      } else if (raw.toLowerCase() === "false") {
+        parsedInputs[key] = false;
+      } else if (/^-?\d+$/.test(raw)) {
+        parsedInputs[key] = parseInt(raw, 10);
+      } else {
+        showError(`Input '${key}' must be an integer or boolean (true/false), got '${raw}'.`);
+        return;
+      }
+    }
+
+    state.isBusy = true;
+    renderExperimentControls(state.currentDiagram);
+
+    try {
+      const trace = await apiRequest("/api/flowchart/trace", {
+        method: "POST",
+        body: JSON.stringify({
+          diagram: state.currentDiagram,
+          inputs: parsedInputs,
+        }),
+      });
+      state.flowchartTrace = trace;
+      state.flowchartStepIdx = 0;
+      if (trace.steps && trace.steps.length > 0) {
+        state.selectedNodeId = trace.steps[0].node_id;
+      }
+      state.lastSimulation = {
+        event: trace.status,
+        announcement: trace.announcement,
+        changes: trace.steps.slice(0, 6).map((s) => `Step ${s.step_index}: ${s.action_description}`),
+      };
+      state.isBusy = false;
+      renderExplorer({ type: "action", action: "run_flowchart" });
+      announce(trace.announcement);
+    } catch (err) {
+      state.isBusy = false;
+      renderExperimentControls(state.currentDiagram, "run_flowchart");
+      showError(`Flowchart execution failed: ${err.message}`);
+      announce(`Flowchart error: ${err.message}`);
+    }
+  }
+
   async function loadExample(exampleId) {
     clearError();
     state.isBusy = true;
@@ -2297,6 +2585,9 @@
       state.lastSimulation = null;
       state.explorerMode = "explore";
       state.tourStep = "overview";
+      state.flowchartTrace = null;
+      state.flowchartStepIdx = 0;
+      state.flowchartInputValues = {};
       stopTts();
       resetLabState();
       await loadLabChallengesForBaseline();
@@ -2369,6 +2660,9 @@
       const backendState = await fetchBackendState(restored);
       state.currentDiagram = restored;
       state.backendState = backendState;
+      state.flowchartTrace = null;
+      state.flowchartStepIdx = 0;
+      state.flowchartInputValues = {};
       state.selectedNodeId =
         state.currentDiagram.nodes.length > 0 ? state.currentDiagram.nodes[0].id : null;
       state.lastSimulation = {
@@ -2410,6 +2704,9 @@
     });
     dom.switchPhysicsBtn.addEventListener("click", () => loadExample("physics_series"));
     dom.switchBiologyBtn.addEventListener("click", () => loadExample("biology_food_web"));
+    dom.switchCsBtn.addEventListener("click", () => loadExample("cs_flowchart"));
+    dom.tracePrevBtn.addEventListener("click", () => stepFlowchartTrace(-1));
+    dom.traceNextBtn.addEventListener("click", () => stepFlowchartTrace(1));
 
     dom.modeExploreBtn.addEventListener("click", () => setExplorerMode("explore"));
     dom.modeLabBtn.addEventListener("click", () => setExplorerMode("lab"));

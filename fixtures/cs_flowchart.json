@@ -1,0 +1,137 @@
+{
+  "schema_version": "1.0",
+  "id": "cs_flowchart",
+  "title": "Sum from 1 to N Flowchart",
+  "domain": "cs_flowchart",
+  "summary": "This flowchart reads a starting integer n, initializes total to 0, and loops while n > 0 to add n to total and decrease n by 1 before ending.",
+  "source": {
+    "mode": "fixture",
+    "filename": "cs_flowchart.json",
+    "provider": null
+  },
+  "review_status": "confirmed",
+  "nodes": [
+    {
+      "id": "start_1",
+      "kind": "start",
+      "label": "Start",
+      "description": "Entry point of the flowchart.",
+      "attributes": {}
+    },
+    {
+      "id": "input_n",
+      "kind": "input",
+      "label": "Input n",
+      "description": "Reads the initial integer value for variable n.",
+      "attributes": {
+        "variable": "n"
+      }
+    },
+    {
+      "id": "init_total",
+      "kind": "assignment",
+      "label": "Set total = 0",
+      "description": "Initializes the running sum variable total to 0.",
+      "attributes": {
+        "variable": "total",
+        "expression": "0"
+      }
+    },
+    {
+      "id": "check_n",
+      "kind": "decision",
+      "label": "Is n > 0?",
+      "description": "Checks whether n is still greater than 0 to continue looping.",
+      "attributes": {
+        "condition": "n > 0"
+      }
+    },
+    {
+      "id": "add_total",
+      "kind": "assignment",
+      "label": "total = total + n",
+      "description": "Adds the current value of n into total.",
+      "attributes": {
+        "variable": "total",
+        "expression": "total + n"
+      }
+    },
+    {
+      "id": "dec_n",
+      "kind": "assignment",
+      "label": "n = n - 1",
+      "description": "Decrements n by 1 before repeating the loop check.",
+      "attributes": {
+        "variable": "n",
+        "expression": "n - 1"
+      }
+    },
+    {
+      "id": "end_1",
+      "kind": "end",
+      "label": "End",
+      "description": "Terminates execution with the computed value of total.",
+      "attributes": {}
+    }
+  ],
+  "edges": [
+    {
+      "id": "flow_1",
+      "source": "start_1",
+      "target": "input_n",
+      "relation": "flow",
+      "description": "Start proceeds to Input n."
+    },
+    {
+      "id": "flow_2",
+      "source": "input_n",
+      "target": "init_total",
+      "relation": "flow",
+      "description": "Input n proceeds to Set total = 0."
+    },
+    {
+      "id": "flow_3",
+      "source": "init_total",
+      "target": "check_n",
+      "relation": "flow",
+      "description": "Set total = 0 proceeds to decision Is n > 0?."
+    },
+    {
+      "id": "branch_t1",
+      "source": "check_n",
+      "target": "add_total",
+      "relation": "branch_true",
+      "description": "When n > 0 is true, proceed to total = total + n."
+    },
+    {
+      "id": "flow_4",
+      "source": "add_total",
+      "target": "dec_n",
+      "relation": "flow",
+      "description": "After updating total, proceed to n = n - 1."
+    },
+    {
+      "id": "flow_5",
+      "source": "dec_n",
+      "target": "check_n",
+      "relation": "flow",
+      "description": "Loop back from n = n - 1 to decision Is n > 0?."
+    },
+    {
+      "id": "branch_f1",
+      "source": "check_n",
+      "target": "end_1",
+      "relation": "branch_false",
+      "description": "When n > 0 is false, proceed to End."
+    }
+  ],
+  "domain_model": {
+    "kind": "flowchart",
+    "entry_node": "start_1",
+    "inputs": {
+      "n": 3
+    },
+    "max_steps": 100
+  },
+  "warnings": []
+}

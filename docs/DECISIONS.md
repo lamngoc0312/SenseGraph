@@ -17,6 +17,7 @@
 - D13 (Phase 4): **Strict upload security bounds**: image pixel dimensions capped at `4096x4096` (16 MP) before full decode to prevent decompression bombs, and declared MIME types must match actual decoded image format (`415 MIME_MISMATCH`).
 - D14 (Phase 5): **Guided Learning Lab (`/api/learning/challenges`, `/api/learning/evaluate`)** generates and evaluates all Physics and Biology challenges deterministically in Python using `evaluate_circuit_state`, `toggle_switch`, `get_organism_relations`, `get_energy_paths`, and `remove_organism`, with zero LLM grading and session-only browser progress (no auth/DB).
 - D15 (Phase 6): **Supplementary SVG semantic graph uses `aria-hidden="true"` and `focusable="false"`** so sighted users get an interactive clickable graph without adding duplicate tab stops for keyboard/screen-reader users, who have 100% equivalent access through the native Component List, Relationships, and text-first Guided Tour. Optional `speechSynthesis` is strictly user-initiated and never autoplays.
+- D16 (Phase 8): **Computer Science Flowchart Explorer (`cs_flowchart`)** uses an explicit recursive-descent expression parser (`app/domains/flowchart.py`, zero `eval`/`exec`) for integer/boolean assignments and comparisons, bounded to `max_steps <= 200` and `0.5s` wall-clock timeout to halt infinite loops safely. Schema (`contracts/diagram.schema.json`), Pydantic models, fixtures, Gemini normalization, Learning Lab, and tests were updated together.
 
 ## Open risks and mitigation
 
