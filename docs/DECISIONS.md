@@ -15,6 +15,7 @@
 - D11 (Phase 3): **Added read-only `POST /api/state` endpoint** to expose explicit backend-calculated physics (`bulb_states`, `switch_states`, `loop_wired`, `bulbs_on`) and biology counts so the frontend never derives scientific state by parsing natural-language summaries.
 - D12 (Phase 4): **Strict rejection of unknown/unsupported Physics component kinds (`422 AI_EXTRACTION_INVALID`)**. Unknown symbols (e.g., `resistor`, `capacitor`, `unknown`) are never coerced to `bulb`, preserving `contracts/diagram.schema.json` and preventing scientifically misleading confirmations.
 - D13 (Phase 4): **Strict upload security bounds**: image pixel dimensions capped at `4096x4096` (16 MP) before full decode to prevent decompression bombs, and declared MIME types must match actual decoded image format (`415 MIME_MISMATCH`).
+- D14 (Phase 5): **Guided Learning Lab (`/api/learning/challenges`, `/api/learning/evaluate`)** generates and evaluates all Physics and Biology challenges deterministically in Python using `evaluate_circuit_state`, `toggle_switch`, `get_organism_relations`, `get_energy_paths`, and `remove_organism`, with zero LLM grading and session-only browser progress (no auth/DB).
 
 ## Open risks and mitigation
 

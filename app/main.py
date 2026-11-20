@@ -20,6 +20,9 @@ from app.models import (
     ErrorEnvelope,
     ExampleSummary,
     HealthResponse,
+    LearningChallengeSetResponse,
+    LearningEvaluateRequest,
+    LearningEvaluationResponse,
     SeriesCircuitModel,
     SimulationRequest,
     SimulationResponse,
@@ -35,6 +38,7 @@ from app.services.ai_vision import (
 )
 from app.services.description import describe_diagram
 from app.services.fixtures import FixtureRepository
+from app.services.learning import evaluate_challenge, generate_challenges
 from app.services.validators import validate_diagram, validate_raw_diagram
 from app.settings import PROJECT_ROOT, SUPPORTED_DOMAINS, Settings, load_settings
 
@@ -283,6 +287,26 @@ def create_app(
                 f"Unsupported action type '{action_type}'. "
                 "Supported actions are 'toggle_switch' and 'remove_organism'."
             ),
+        )
+
+    @application.post(
+        "/api/learning/challenges", response_model=LearningChallengeSetResponse
+    )
+    def post_learning_challenges(
+        diagram: DiagramDocument,
+    ) -> LearningChallengeSetResponse:
+        return generate_challenges(diagram)
+
+    @application.post(
+        "/api/learning/evaluate", response_model=LearningEvaluationResponse
+    )
+    def post_learning_evaluate(
+        request: LearningEvaluateRequest,
+    ) -> LearningEvaluationResponse:
+        return evaluate_challenge(
+            diagram=request.diagram,
+            challenge_id=request.challenge_id,
+            selected_option_ids=request.selected_option_ids,
         )
 
     return application

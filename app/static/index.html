@@ -269,6 +269,92 @@
         </div>
       </div>
 
+      <!-- Phase 5: Mode Switcher (Explore Freely vs Guided Learning Lab) -->
+      <nav class="mode-switcher" aria-label="Learning mode">
+        <button
+          type="button"
+          id="mode-explore-btn"
+          class="btn btn-primary"
+          aria-pressed="true"
+        >
+          Explore Freely
+        </button>
+        <button
+          type="button"
+          id="mode-lab-btn"
+          class="btn btn-secondary"
+          aria-pressed="false"
+        >
+          Guided Learning Lab
+        </button>
+      </nav>
+
+      <!-- Phase 5: Guided Learning Lab Panel -->
+      <section
+        id="learning-lab-panel"
+        class="panel learning-lab-panel"
+        aria-labelledby="lab-heading"
+        hidden
+      >
+        <div class="lab-header">
+          <div>
+            <p class="eyebrow">Predict · Experiment · Explain</p>
+            <h3 id="lab-heading" tabindex="-1">Guided Learning Lab</h3>
+          </div>
+          <p id="lab-progress-text" class="badge badge-domain">Challenge 1 of 3</p>
+        </div>
+
+        <p id="lab-unavailable-msg" class="convention-note" hidden></p>
+
+        <div id="lab-active-content">
+          <p id="lab-step-cue" class="panel-hint">
+            Workflow: 1. Explore the diagram below · 2. Make a prediction · 3. Run the deterministic experiment · 4. Read the evidence-based explanation.
+          </p>
+
+          <h4 id="lab-challenge-title"></h4>
+          <p id="lab-challenge-prompt" class="summary-text"></p>
+          <p id="lab-challenge-hint" class="panel-hint"></p>
+
+          <form id="lab-prediction-form" class="lab-form">
+            <fieldset class="lab-fieldset">
+              <legend id="lab-options-legend">Choose your prediction</legend>
+              <div id="lab-options-container" class="lab-options-list">
+                <!-- Native radio buttons or checkboxes populated dynamically -->
+              </div>
+            </fieldset>
+
+            <div class="experiment-actions">
+              <button type="submit" id="lab-submit-btn" class="btn btn-primary">
+                Submit Prediction &amp; Run Experiment
+              </button>
+              <button type="button" id="lab-retry-btn" class="btn btn-secondary" hidden>
+                Retry Challenge
+              </button>
+              <button type="button" id="lab-skip-btn" class="btn btn-ghost">
+                Skip Challenge
+              </button>
+              <button type="button" id="lab-next-btn" class="btn btn-teal" hidden>
+                Next Challenge
+              </button>
+              <button type="button" id="lab-reset-btn" class="btn btn-ghost">
+                Reset Lab Session
+              </button>
+            </div>
+          </form>
+
+          <div id="lab-result-box" class="lab-result-box" hidden>
+            <p id="lab-result-status" class="lab-result-status"></p>
+            <p id="lab-result-summary" class="feedback-announcement"></p>
+            <p id="lab-result-explanation" class="summary-text"></p>
+            <h5>Verifiable Evidence</h5>
+            <ul id="lab-result-evidence" class="changes-list"></ul>
+            <div id="lab-related-links" class="lab-related-links"></div>
+          </div>
+
+          <p id="lab-scientific-note" class="limitation-note"></p>
+        </div>
+      </section>
+
       <!-- Diagram Overview -->
       <section class="panel overview-panel" aria-labelledby="overview-heading">
         <h3 id="overview-heading">Diagram Overview</h3>

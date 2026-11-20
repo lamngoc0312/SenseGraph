@@ -597,7 +597,109 @@ h4 {
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+/* Phase 5: Mode Switcher & Guided Learning Lab */
+.mode-switcher {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.learning-lab-panel {
+  margin-bottom: 1.25rem;
+  border-top: 5px solid var(--accent-teal);
+}
+
+.lab-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.lab-fieldset {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 1rem;
+  margin: 0 0 1rem;
+  background-color: var(--bg-page);
+}
+
+.lab-fieldset legend {
+  font-weight: 700;
+  padding: 0 0.4rem;
+  color: var(--text-primary);
+}
+
+.lab-options-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.lab-option-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0.8rem;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  min-height: 44px;
+}
+
+.lab-option-row input {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  accent-color: var(--accent-primary);
+}
+
+.lab-option-row label {
+  font-weight: 600;
+  color: var(--text-primary);
+  cursor: pointer;
+  flex: 1;
+}
+
+.lab-result-box {
+  margin-bottom: 1rem;
+  padding: 1.15rem;
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--border-feedback);
+  background-color: var(--bg-feedback);
+}
+
+.lab-result-box.is-review {
+  border-color: var(--border-warning);
+  background-color: var(--bg-warning);
+}
+
+.lab-result-status {
+  margin: 0 0 0.35rem;
+  font-size: 0.9rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-primary);
+}
+
+.lab-result-box h5 {
+  margin: 0.75rem 0 0.4rem;
+  font-size: 0.98rem;
+  color: var(--text-primary);
+}
+
+.lab-related-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
 }
 
 .explorer-title-group {

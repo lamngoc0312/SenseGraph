@@ -40,6 +40,15 @@
     reviewDraft: null,
     reviewValidation: null,
     reviewArrowConfirmed: false,
+    // Guided Learning Lab (session-only, per browser tab)
+    explorerMode: "explore", // "explore" | "lab"
+    labAvailable: false,
+    labUnavailableReason: null,
+    labChallenges: [],
+    labIndex: 0,
+    labCompletedIds: new Set(),
+    labCorrectIds: new Set(),
+    labCurrentResult: null,
     isBusy: false,
   };
 
@@ -90,6 +99,31 @@
     backToHomeBtn: document.getElementById("back-to-home-btn"),
     switchPhysicsBtn: document.getElementById("switch-physics-btn"),
     switchBiologyBtn: document.getElementById("switch-biology-btn"),
+    modeExploreBtn: document.getElementById("mode-explore-btn"),
+    modeLabBtn: document.getElementById("mode-lab-btn"),
+    learningLabPanel: document.getElementById("learning-lab-panel"),
+    labHeading: document.getElementById("lab-heading"),
+    labProgressText: document.getElementById("lab-progress-text"),
+    labUnavailableMsg: document.getElementById("lab-unavailable-msg"),
+    labActiveContent: document.getElementById("lab-active-content"),
+    labChallengeTitle: document.getElementById("lab-challenge-title"),
+    labChallengePrompt: document.getElementById("lab-challenge-prompt"),
+    labChallengeHint: document.getElementById("lab-challenge-hint"),
+    labPredictionForm: document.getElementById("lab-prediction-form"),
+    labOptionsLegend: document.getElementById("lab-options-legend"),
+    labOptionsContainer: document.getElementById("lab-options-container"),
+    labSubmitBtn: document.getElementById("lab-submit-btn"),
+    labRetryBtn: document.getElementById("lab-retry-btn"),
+    labSkipBtn: document.getElementById("lab-skip-btn"),
+    labNextBtn: document.getElementById("lab-next-btn"),
+    labResetBtn: document.getElementById("lab-reset-btn"),
+    labResultBox: document.getElementById("lab-result-box"),
+    labResultStatus: document.getElementById("lab-result-status"),
+    labResultSummary: document.getElementById("lab-result-summary"),
+    labResultExplanation: document.getElementById("lab-result-explanation"),
+    labResultEvidence: document.getElementById("lab-result-evidence"),
+    labRelatedLinks: document.getElementById("lab-related-links"),
+    labScientificNote: document.getElementById("lab-scientific-note"),
     diagramTitle: document.getElementById("diagram-title"),
     sourceBadge: document.getElementById("source-badge"),
     reviewBadge: document.getElementById("review-badge"),
@@ -944,6 +978,9 @@
       state.lastSimulation = null;
       state.reviewDraft = null;
       state.reviewValidation = null;
+      state.explorerMode = "explore";
+      resetLabState();
+      await loadLabChallengesForBaseline();
       state.isBusy = false;
 
       showSection("explorer");
@@ -958,6 +995,298 @@
       showError(`Could not confirm diagram: ${err.message}`);
       announce(`Confirmation failed: ${err.message}`);
     }
+  }
+
+  // --- Phase 5: Guided Learning Lab ---
+
+  function resetLabState() {
+    state.labAvailable = false;
+    state.labUnavailableReason = null;
+    state.labChallenges = [];
+    state.labIndex = 0;
+    state.labCompletedIds = new Set();
+    state.labCorrectIds = new Set();
+    state.labCurrentResult = null;
+  }
+
+  async function loadLabChallengesForBaseline() {
+    if (!state.baselineDiagram) return;
+    try {
+      const resp = await apiRequest("/api/learning/challenges", {
+        method: "POST",
+        body: JSON.stringify(state.baselineDiagram),
+      });
+      state.labAvailable = Boolean(resp.available);
+      state.labUnavailableReason = resp.unavailable_reason || null;
+      state.labChallenges = Array.isArray(resp.challenges) ? resp.challenges : [];
+      state.labIndex = 0;
+      state.labCompletedIds = new Set();
+      state.labCorrectIds = new Set();
+      state.labCurrentResult = null;
+    } catch (err) {
+      state.labAvailable = false;
+      state.labUnavailableReason = `Learning Lab could not be loaded: ${err.message}`;
+      state.labChallenges = [];
+    }
+  }
+
+  function renderModeSwitcher() {
+    const isLab = state.explorerMode === "lab";
+    dom.modeExploreBtn.setAttribute("aria-pressed", isLab ? "false" : "true");
+    dom.modeLabBtn.setAttribute("aria-pressed", isLab ? "true" : "false");
+    dom.modeExploreBtn.className = isLab ? "btn btn-secondary" : "btn btn-primary";
+    dom.modeLabBtn.className = isLab ? "btn btn-teal" : "btn btn-secondary";
+    dom.learningLabPanel.hidden = !isLab;
+  }
+
+  function renderLearningLab() {
+    renderModeSwitcher();
+    if (state.explorerMode !== "lab") return;
+
+    if (!state.labAvailable || state.labChallenges.length === 0) {
+      dom.labUnavailableMsg.textContent =
+        state.labUnavailableReason ||
+        "No guided learning challenges are available for this diagram.";
+      dom.labUnavailableMsg.hidden = false;
+      dom.labActiveContent.hidden = true;
+      dom.labProgressText.textContent = "Unavailable";
+      return;
+    }
+
+    dom.labUnavailableMsg.hidden = true;
+    dom.labActiveContent.hidden = false;
+
+    const total = state.labChallenges.length;
+    const challenge = state.labChallenges[state.labIndex] || state.labChallenges[0];
+    dom.labProgressText.textContent =
+      `Challenge ${state.labIndex + 1} of ${total} · ` +
+      `Answered: ${state.labCompletedIds.size}/${total} · ` +
+      `Correct: ${state.labCorrectIds.size}`;
+
+    dom.labChallengeTitle.textContent = challenge.title;
+    dom.labChallengePrompt.textContent = challenge.prompt;
+    dom.labChallengeHint.textContent = `Hint: ${challenge.hint}`;
+    dom.labScientificNote.textContent = challenge.scientific_note;
+
+    dom.labOptionsLegend.textContent =
+      challenge.input_type === "single_choice"
+        ? "Select one prediction"
+        : "Select all that apply";
+
+    dom.labOptionsContainer.textContent = "";
+    const inputType = challenge.input_type === "single_choice" ? "radio" : "checkbox";
+    const answered = Boolean(state.labCurrentResult);
+    const prevSelected = new Set(
+      (state.labCurrentResult && state.labCurrentResult.selected_option_ids) || []
+    );
+
+    challenge.options.forEach((opt, idx) => {
+      const row = document.createElement("div");
+      row.className = "lab-option-row";
+
+      const input = document.createElement("input");
+      input.type = inputType;
+      input.id = `lab-opt-${idx}`;
+      input.name = "lab-prediction";
+      input.value = opt.id;
+      input.disabled = answered || state.isBusy;
+      if (prevSelected.has(opt.id)) {
+        input.checked = true;
+      }
+
+      const label = document.createElement("label");
+      label.setAttribute("for", input.id);
+      label.textContent = opt.label;
+
+      row.appendChild(input);
+      row.appendChild(label);
+      dom.labOptionsContainer.appendChild(row);
+    });
+
+    dom.labSubmitBtn.textContent =
+      challenge.action_type === "inspect_only"
+        ? "Check Prediction"
+        : "Submit Prediction & Run Experiment";
+    dom.labSubmitBtn.hidden = answered;
+    dom.labSubmitBtn.disabled = state.isBusy;
+    dom.labRetryBtn.hidden = !answered;
+    dom.labNextBtn.hidden = !answered;
+    dom.labNextBtn.textContent =
+      state.labIndex + 1 < total ? "Next Challenge" : "Restart First Challenge";
+    dom.labSkipBtn.hidden = answered || total <= 1;
+
+    if (state.labCurrentResult) {
+      const res = state.labCurrentResult;
+      dom.labResultBox.hidden = false;
+      dom.labResultBox.className = res.correct
+        ? "lab-result-box"
+        : "lab-result-box is-review";
+      dom.labResultStatus.textContent = res.correct
+        ? "Outcome: Prediction matched deterministic result"
+        : "Outcome: Compare your prediction with the deterministic result";
+      dom.labResultSummary.textContent = res.summary;
+      dom.labResultExplanation.textContent = res.explanation;
+
+      dom.labResultEvidence.textContent = "";
+      for (const line of res.evidence || []) {
+        const li = document.createElement("li");
+        li.textContent = line;
+        dom.labResultEvidence.appendChild(li);
+      }
+
+      dom.labRelatedLinks.textContent = "";
+      const nodeMap = getNodeMap(state.currentDiagram);
+      const uniqueRelated = Array.from(new Set(res.related_node_ids || []));
+      for (const nid of uniqueRelated) {
+        const node = nodeMap.get(nid);
+        if (!node) continue;
+        const jumpBtn = document.createElement("button");
+        jumpBtn.type = "button";
+        jumpBtn.className = "btn btn-secondary btn-sm";
+        jumpBtn.textContent = `Inspect ${node.label}`;
+        jumpBtn.addEventListener("click", () => selectNode(nid, "move_to_detail"));
+        dom.labRelatedLinks.appendChild(jumpBtn);
+      }
+    } else {
+      dom.labResultBox.hidden = true;
+    }
+  }
+
+  async function setExplorerMode(mode) {
+    if (state.explorerMode === mode) return;
+    clearError();
+    state.explorerMode = mode;
+
+    if (mode === "lab") {
+      if (state.labChallenges.length === 0 && !state.labUnavailableReason) {
+        await loadLabChallengesForBaseline();
+      }
+      renderLearningLab();
+      dom.labHeading.focus();
+      announce(
+        state.labAvailable
+          ? `Entered Guided Learning Lab. Challenge 1 of ${state.labChallenges.length}.`
+          : state.labUnavailableReason || "Guided Learning Lab is unavailable for this diagram."
+      );
+    } else {
+      renderModeSwitcher();
+      dom.modeExploreBtn.focus();
+      announce("Switched to Explore Freely mode.");
+    }
+  }
+
+  async function handleLabSubmit(event) {
+    event.preventDefault();
+    if (!state.baselineDiagram || !state.labChallenges.length || state.isBusy) return;
+    clearError();
+
+    const challenge = state.labChallenges[state.labIndex];
+    const checked = Array.from(
+      dom.labOptionsContainer.querySelectorAll("input:checked")
+    ).map((el) => el.value);
+
+    if (challenge.input_type === "single_choice" && checked.length === 0) {
+      showError("Please choose a prediction option before submitting.");
+      const firstInput = dom.labOptionsContainer.querySelector("input");
+      if (firstInput) firstInput.focus();
+      return;
+    }
+
+    state.isBusy = true;
+    dom.labSubmitBtn.disabled = true;
+
+    try {
+      // Evaluate strictly against the confirmed baseline diagram so results are deterministic.
+      const evaluation = await apiRequest("/api/learning/evaluate", {
+        method: "POST",
+        body: JSON.stringify({
+          diagram: state.baselineDiagram,
+          challenge_id: challenge.id,
+          selected_option_ids: checked,
+        }),
+      });
+
+      state.labCurrentResult = evaluation;
+      state.labCompletedIds.add(challenge.id);
+      if (evaluation.correct) {
+        state.labCorrectIds.add(challenge.id);
+      }
+
+      if (evaluation.simulation_result) {
+        const updated = evaluation.simulation_result.updated_diagram;
+        const backendState = await fetchBackendState(updated);
+        state.currentDiagram = updated;
+        state.backendState = backendState;
+        state.lastSimulation = {
+          event: evaluation.simulation_result.event,
+          announcement: evaluation.simulation_result.announcement,
+          changes: evaluation.simulation_result.changes || [],
+        };
+        if (!state.currentDiagram.nodes.some((n) => n.id === state.selectedNodeId)) {
+          state.selectedNodeId =
+            state.currentDiagram.nodes.length > 0
+              ? state.currentDiagram.nodes[0].id
+              : null;
+        }
+      }
+
+      state.isBusy = false;
+      renderExplorer();
+      dom.labNextBtn.focus();
+      announce(`${evaluation.summary} ${evaluation.explanation}`);
+    } catch (err) {
+      state.isBusy = false;
+      renderLearningLab();
+      showError(`Learning Lab evaluation failed: ${err.message}`);
+      announce(`Evaluation failed: ${err.message}`);
+    }
+  }
+
+  async function restoreBaselineForLab() {
+    if (!state.baselineDiagram) return;
+    const restored = deepClone(state.baselineDiagram);
+    const backendState = await fetchBackendState(restored);
+    state.currentDiagram = restored;
+    state.backendState = backendState;
+    state.lastSimulation = null;
+    if (!state.currentDiagram.nodes.some((n) => n.id === state.selectedNodeId)) {
+      state.selectedNodeId =
+        state.currentDiagram.nodes.length > 0 ? state.currentDiagram.nodes[0].id : null;
+    }
+  }
+
+  async function handleLabRetry() {
+    clearError();
+    state.labCurrentResult = null;
+    await restoreBaselineForLab();
+    renderExplorer();
+    dom.labHeading.focus();
+    announce("Challenge reset. Make a new prediction.");
+  }
+
+  async function handleLabAdvance(wasSkipped) {
+    if (!state.labChallenges.length) return;
+    clearError();
+    state.labIndex = (state.labIndex + 1) % state.labChallenges.length;
+    state.labCurrentResult = null;
+    await restoreBaselineForLab();
+    renderExplorer();
+    dom.labHeading.focus();
+    announce(
+      `${wasSkipped ? "Skipped to" : "Moved to"} challenge ${state.labIndex + 1} of ${state.labChallenges.length}: ${state.labChallenges[state.labIndex].title}.`
+    );
+  }
+
+  async function handleLabResetSession() {
+    clearError();
+    state.labIndex = 0;
+    state.labCompletedIds = new Set();
+    state.labCorrectIds = new Set();
+    state.labCurrentResult = null;
+    await restoreBaselineForLab();
+    renderExplorer();
+    dom.labHeading.focus();
+    announce("Guided Learning Lab session reset to Challenge 1.");
   }
 
   // --- Shared Explorer (Fixtures & Confirmed AI Diagrams) ---
@@ -1396,6 +1725,7 @@
     }
 
     renderStats(diagram);
+    renderLearningLab();
     renderFeedback();
     renderComponentList(
       diagram,
@@ -1445,6 +1775,9 @@
       state.backendState = backendState;
       state.selectedNodeId = diagram.nodes.length > 0 ? diagram.nodes[0].id : null;
       state.lastSimulation = null;
+      state.explorerMode = "explore";
+      resetLabState();
+      await loadLabChallengesForBaseline();
       state.isBusy = false;
 
       renderExplorer();
@@ -1554,6 +1887,14 @@
     });
     dom.switchPhysicsBtn.addEventListener("click", () => loadExample("physics_series"));
     dom.switchBiologyBtn.addEventListener("click", () => loadExample("biology_food_web"));
+
+    dom.modeExploreBtn.addEventListener("click", () => setExplorerMode("explore"));
+    dom.modeLabBtn.addEventListener("click", () => setExplorerMode("lab"));
+    dom.labPredictionForm.addEventListener("submit", handleLabSubmit);
+    dom.labRetryBtn.addEventListener("click", handleLabRetry);
+    dom.labSkipBtn.addEventListener("click", () => handleLabAdvance(true));
+    dom.labNextBtn.addEventListener("click", () => handleLabAdvance(false));
+    dom.labResetBtn.addEventListener("click", handleLabResetSession);
 
     dom.analyzeForm.addEventListener("submit", handleAnalyzeSubmit);
     dom.reviewTitleInput.addEventListener("input", () => {

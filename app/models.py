@@ -191,3 +191,52 @@ class DiagramStateResponse(BaseModel):
     bulb_states: dict[str, Literal["on", "off"]] = Field(default_factory=dict)
     organism_count: int | None = None
     relationship_count: int | None = None
+
+
+# --- Guided Learning Lab (Phase 5) contracts ---
+
+
+class ChallengeOption(BaseModel):
+    id: str
+    label: str
+
+
+class LearningChallenge(BaseModel):
+    id: str
+    template: str
+    title: str
+    prompt: str
+    hint: str
+    input_type: Literal["single_choice", "multi_choice"]
+    options: list[ChallengeOption]
+    action_type: Literal["toggle_switch", "remove_organism", "inspect_only"]
+    target_id: str | None = None
+    scientific_note: str
+
+
+class LearningChallengeSetResponse(BaseModel):
+    available: bool
+    unavailable_reason: str | None = None
+    domain: DomainType
+    challenges: list[LearningChallenge] = Field(default_factory=list)
+
+
+class LearningEvaluateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    diagram: DiagramDocument
+    challenge_id: str = Field(..., min_length=1)
+    selected_option_ids: list[str] = Field(default_factory=list)
+
+
+class LearningEvaluationResponse(BaseModel):
+    challenge_id: str
+    correct: bool
+    selected_option_ids: list[str]
+    expected_option_ids: list[str]
+    expected_labels: list[str]
+    summary: str
+    explanation: str
+    evidence: list[str] = Field(default_factory=list)
+    related_node_ids: list[str] = Field(default_factory=list)
+    simulation_result: SimulationResponse | None = None

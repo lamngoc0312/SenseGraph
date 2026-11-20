@@ -6,7 +6,7 @@ SenseGraph is an accessible interactive STEM diagram learning prototype designed
 
 - **Primary hackathon track:** Education
 - **Related social impact:** Community Impact
-- **Current status:** Phase 1 (Core Backend), Phase 2 (Accessible Frontend), Phase 3 (Gemini Vision & Human Review), and Phase 4 (Stability, Scientific Integrity & Security Audit) implemented and verified with automated tests.
+- **Current status:** Phases 1–5 implemented and verified with automated tests (Core Backend, Accessible Frontend, Gemini Vision & Human Review, Stability/Security Audit, and Guided Learning Lab).
 
 ---
 
@@ -30,6 +30,8 @@ SenseGraph is an accessible interactive STEM diagram learning prototype designed
   - `POST /api/confirm`
   - `POST /api/state` (explicit backend-calculated circuit/food-web state)
   - `POST /api/simulate`
+  - `POST /api/learning/challenges` (deterministic Guided Learning Lab challenge generation)
+  - `POST /api/learning/evaluate` (deterministic prediction evaluation + concept explanation)
 
 ### Accessible Frontend (Semantic HTML5 + CSS + Vanilla JavaScript)
 - Served directly by FastAPI at `http://127.0.0.1:8000` (no Node build step required).
@@ -39,6 +41,9 @@ SenseGraph is an accessible interactive STEM diagram learning prototype designed
   - **Confirmed diagram — ready to explore** in the interactive explorer
 - **Analyze Your Own Diagram & Human Review Workflow:**
   - Upload PNG/JPEG/WEBP -> Choose Domain -> Explicit external-provider consent -> Analyze with Gemini -> Review AI warnings & validation errors -> Edit labels, types, connections, Physics loop sequence, or Biology arrow directions -> Validate -> Confirm -> Explore & Experiment.
+- **Two Learning Modes in the Shared Explorer:**
+  - **Explore Freely:** Inspect components, follow direct connections, toggle switches or remove organisms, and reset at any time.
+- **Guided Learning Lab (Predict → Experiment → Explain):** Structured, session-only challenges with native radio/checkbox prediction controls, deterministic Python engine verification, evidence-based explanations, linked component jump buttons, retry, skip, and session reset (works for both pre-annotated fixtures and confirmed AI diagrams; zero LLM grading).
 - **Keyboard-first & screen-reader-oriented UI:**
   - Semantic landmarks (`<header>`, `<main>`, `<footer>`, hierarchical `<h1>`–`<h4>`), skip-to-content link, and high-contrast visible focus indicators.
   - Native `<button>` controls and accessible `<label>`-bound form inputs (no keyboard traps).
