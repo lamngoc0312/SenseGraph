@@ -13,6 +13,11 @@ FIXTURES_DIR = PROJECT_ROOT / "fixtures"
 CONTRACTS_DIR = PROJECT_ROOT / "contracts"
 DIAGRAM_SCHEMA_PATH = CONTRACTS_DIR / "diagram.schema.json"
 
+CORE_DOMAINS: tuple[str, ...] = (
+    "physics_circuit",
+    "biology_food_web",
+)
+
 SUPPORTED_DOMAINS: tuple[str, ...] = (
     "physics_circuit",
     "biology_food_web",
@@ -31,8 +36,15 @@ class Settings:
     gemini_model: str = "gemini-2.5-flash"
     ai_timeout_seconds: float = 30.0
     max_upload_mb: int = 5
+    enable_experimental_domains: bool = True
+    analyze_rate_limit_per_min: int = 20
     fixtures_dir: Path = FIXTURES_DIR
     schema_path: Path = DIAGRAM_SCHEMA_PATH
+
+    @property
+    def active_domains(self) -> tuple[str, ...]:
+        """Return domains enabled by current feature flags."""
+        return SUPPORTED_DOMAINS if self.enable_experimental_domains else CORE_DOMAINS
 
     @property
     def ai_configured(self) -> bool:
@@ -62,10 +74,21 @@ def load_settings() -> Settings:
     except ValueError:
         max_upload_mb = 5
 
+    raw_exp = os.getenv("ENABLE_EXPERIMENTAL_DOMAINS", "true").strip().lower()
+    enable_experimental_domains = raw_exp not in {"false", "0", "no"}
+
+    raw_rate = os.getenv("ANALYZE_RATE_LIMIT_PER_MIN", "20").strip()
+    try:
+        analyze_rate_limit_per_min = max(1, int(raw_rate))
+    except ValueError:
+        analyze_rate_limit_per_min = 20
+
     return Settings(
         ai_provider=ai_provider,
         gemini_api_key=gemini_api_key,
         gemini_model=gemini_model,
         ai_timeout_seconds=ai_timeout_seconds,
         max_upload_mb=max_upload_mb,
+        enable_experimental_domains=enable_experimental_domains,
+        analyze_rate_limit_per_min=analyze_rate_limit_per_min,
     )

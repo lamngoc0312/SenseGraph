@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import logging
+import time
+from collections import defaultdict, deque
 from typing import Annotated, Any
 
 from fastapi import FastAPI, File, Form, Request, UploadFile
@@ -55,7 +58,7 @@ from app.services.fixtures import FixtureRepository
 from app.services.learning import evaluate_challenge, generate_challenges
 from app.services.tutor import TutorNarrator, answer_grounded_question
 from app.services.validators import validate_diagram, validate_raw_diagram
-from app.settings import PROJECT_ROOT, SUPPORTED_DOMAINS, Settings, load_settings
+from app.settings import PROJECT_ROOT, Settings, load_settings
 
 
 class APIError(Exception):
@@ -113,6 +116,22 @@ def create_app(
     application.state.settings = active_settings
     application.state.fixture_repo = fixture_repo
     application.state.vision_provider = active_provider
+    logger = logging.getLogger("sensegraph.telemetry")
+    analyze_hits: dict[str, deque[float]] = defaultdict(deque)
+
+    def _check_analyze_rate_limit(client_ip: str) -> None:
+        now = time.monotonic()
+        window = analyze_hits[client_ip]
+        while window and (now - window[0]) > 60.0:
+            window.popleft()
+        if len(window) >= active_settings.analyze_rate_limit_per_min:
+            logger.warning("rate_limit_exceeded route=/api/analyze")
+            raise APIError(
+                status_code=429,
+                code="RATE_LIMIT_EXCEEDED",
+                message="Too many image analysis requests. Please wait a minute and try again.",
+            )
+        window.append(now)
 
     static_dir = PROJECT_ROOT / "app" / "static"
     fixture_images_dir = active_settings.fixtures_dir / "images"
@@ -178,22 +197,26 @@ def create_app(
         return HealthResponse(
             status="ok",
             ai_configured=active_provider is not None,
-            supported_domains=list(SUPPORTED_DOMAINS),
+            supported_domains=list(active_settings.active_domains),
         )
 
     @application.post("/api/analyze", response_model=DiagramDocument)
     async def post_analyze(
+        request: Request,
         file: Annotated[UploadFile, File(...)],
         domain: Annotated[str, Form(...)],
         consent: Annotated[str, Form()] = "false",
     ) -> DiagramDocument:
-        if domain not in SUPPORTED_DOMAINS:
+        client_ip = request.client.host if request.client else "unknown"
+        _check_analyze_rate_limit(client_ip)
+        allowed_domains = active_settings.active_domains
+        if domain not in allowed_domains:
             raise APIError(
                 status_code=400,
                 code="INVALID_DOMAIN",
                 message=(
                     f"Unsupported domain '{domain}'. "
-                    f"Choose one of: {', '.join(SUPPORTED_DOMAINS)}."
+                    f"Choose one of: {', '.join(allowed_domains)}."
                 ),
             )
 
@@ -305,7 +328,8 @@ def create_app(
 
     @application.get("/api/examples", response_model=list[ExampleSummary])
     def list_examples() -> list[ExampleSummary]:
-        return fixture_repo.list_examples()
+        enabled = set(active_settings.active_domains)
+        return [ex for ex in fixture_repo.list_examples() if ex.domain in enabled]
 
     @application.get("/api/examples/{example_id}", response_model=DiagramDocument)
     def get_example(example_id: str) -> DiagramDocument:

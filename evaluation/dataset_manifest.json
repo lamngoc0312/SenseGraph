@@ -1,0 +1,67 @@
+{
+  "dataset_version": "1.0",
+  "license": "Original SenseGraph project assets (no third-party copyrighted textbook scans or personal data).",
+  "note": "Live Gemini extraction scores are recorded ONLY after running evaluation/benchmark.py --mode live with a configured GEMINI_API_KEY. Never treat dry-run or mocked tests as live vision accuracy.",
+  "cases": [
+    {
+      "case_id": "PHY-EASY-01",
+      "domain": "physics_circuit",
+      "difficulty": "easy",
+      "expected_supported": true,
+      "image_path": "fixtures/images/physics_series.png",
+      "provenance": "Original handoff fixture schematic",
+      "expected_fixture": "fixtures/physics_series.json",
+      "notes": "Single-loop series circuit: 1 battery, 1 open switch, 1 bulb."
+    },
+    {
+      "case_id": "PHY-NEG-01",
+      "domain": "physics_circuit",
+      "difficulty": "difficult",
+      "expected_supported": false,
+      "image_path": null,
+      "provenance": "Synthetic negative specification (resistor / parallel branch)",
+      "expected_fixture": null,
+      "notes": "Unsupported resistor or parallel branch must be rejected with 422 AI_EXTRACTION_INVALID or blocked from confirmation."
+    },
+    {
+      "case_id": "BIO-EASY-01",
+      "domain": "biology_food_web",
+      "difficulty": "easy",
+      "expected_supported": true,
+      "image_path": "fixtures/images/biology_food_web.png",
+      "provenance": "Original handoff fixture schematic",
+      "expected_fixture": "fixtures/biology_food_web.json",
+      "notes": "5-organism grassland food web with 4 directed food->consumer edges."
+    },
+    {
+      "case_id": "CS-MED-01",
+      "domain": "cs_flowchart",
+      "difficulty": "medium",
+      "expected_supported": true,
+      "image_path": null,
+      "provenance": "Curated JSON fixture (image capture pending)",
+      "expected_fixture": "fixtures/cs_flowchart.json",
+      "notes": "Sum 1..N finite loop with start, input, assignment, decision (True/False), and end."
+    },
+    {
+      "case_id": "MATH-EASY-01",
+      "domain": "math_plot",
+      "difficulty": "easy",
+      "expected_supported": true,
+      "image_path": null,
+      "provenance": "Curated JSON fixture (CSV/formula source)",
+      "expected_fixture": "fixtures/math_plot.json",
+      "notes": "Projectile height y = -x^2 + 4x across 5 exact points."
+    },
+    {
+      "case_id": "CHEM-EASY-01",
+      "domain": "chemistry_molecule",
+      "difficulty": "easy",
+      "expected_supported": true,
+      "image_path": null,
+      "provenance": "Curated JSON fixture (validated SMILES C=O)",
+      "expected_fixture": "fixtures/chemistry_molecule.json",
+      "notes": "Formaldehyde (CH2O) with 1 double bond and 2 single bonds."
+    }
+  ]
+}
