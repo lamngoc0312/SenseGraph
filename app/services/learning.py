@@ -13,6 +13,7 @@ from app.domains.biology import (
     get_organism_relations,
     remove_organism,
 )
+from app.domains.chemistry import ELEMENT_NAMES, get_atom_counts, get_atom_neighbors
 from app.domains.flowchart import execute_flowchart
 from app.domains.mathematics import analyze_interval, analyze_math_plot
 from app.domains.physics import evaluate_circuit_state, toggle_switch
@@ -24,6 +25,7 @@ from app.models import (
     LearningChallengeSetResponse,
     LearningEvaluationResponse,
     MathPlotModel,
+    MoleculeModel,
     SeriesCircuitModel,
 )
 from app.services.validators import validate_diagram
@@ -964,6 +966,157 @@ def _evaluate_math_challenge(
     )
 
 
+# --- Chemistry Molecular Structure challenges (Phase 10) ---
+
+
+def _build_chemistry_challenges(diagram: DiagramDocument) -> list[LearningChallenge]:
+    if not isinstance(diagram.domain_model, MoleculeModel):
+        return []
+    counts = get_atom_counts(diagram)
+    if not counts:
+        return []
+
+    challenges: list[LearningChallenge] = []
+    # Pick an element to count (prefer H or C if present)
+    target_el = "H" if "H" in counts else next(iter(counts.keys()))
+    actual_cnt = counts[target_el]
+    el_name = ELEMENT_NAMES.get(target_el, target_el)
+    candidate_nums = sorted({actual_cnt, actual_cnt + 1, max(0, actual_cnt - 1), actual_cnt + 2})
+
+    challenges.append(
+        LearningChallenge(
+            id=f"chem_count:{target_el}",
+            template="chem_count_element",
+            title=f"Count {el_name} ({target_el}) Atoms",
+            prompt=f"How many {el_name} ({target_el}) atoms are in {diagram.title}?",
+            hint="Inspect the component list or formula to count all atoms of this element.",
+            input_type="single_choice",
+            options=[ChallengeOption(id=str(n), label=f"{n} atom(s)") for n in candidate_nums],
+            action_type="inspect_only",
+            target_id=diagram.nodes[0].id,
+            scientific_note=(
+                "Structural connectivity only; does not infer toxicity, reaction yields, "
+                "medical properties, or lab safety."
+            ),
+        )
+    )
+
+    # Pick an atom with at least one bond for neighbor identification
+    central = next((n for n in diagram.nodes if get_atom_neighbors(diagram, n.id)), None)
+    if central is not None and len(diagram.nodes) >= 2:
+        challenges.append(
+            LearningChallenge(
+                id=f"chem_neighbors:{central.id}",
+                template="chem_atom_neighbors",
+                title=f"Identify Atoms Directly Bonded to {central.label}",
+                prompt=f"Which atom(s) are directly bonded to {central.label} in this molecule?",
+                hint=f"Select {central.label} in the component list to review its covalent bonds.",
+                input_type="multi_choice",
+                options=[
+                    ChallengeOption(id=n.id, label=n.label)
+                    for n in diagram.nodes
+                    if n.id != central.id
+                ],
+                action_type="inspect_only",
+                target_id=central.id,
+                scientific_note="Checks direct covalent bonds (single, double, or triple).",
+            )
+        )
+
+    return challenges
+
+
+def _evaluate_chemistry_challenge(
+    diagram: DiagramDocument,
+    challenge_id: str,
+    selected_option_ids: list[str],
+) -> LearningEvaluationResponse:
+    parts = challenge_id.split(":", 1)
+    if len(parts) != 2:
+        raise DomainSimulationError(
+            code="INVALID_CHALLENGE",
+            message=f"Invalid chemistry challenge '{challenge_id}'.",
+            status_code=400,
+        )
+    kind_key, target = parts
+
+    if kind_key == "chem_count":
+        counts = get_atom_counts(diagram)
+        expected = str(counts.get(target, 0))
+        el_name = ELEMENT_NAMES.get(target, target)
+        selected_clean = [s.strip() for s in selected_option_ids if s.strip()]
+        correct = selected_clean == [expected]
+        summary = (
+            f"Correct! {diagram.title} contains {expected} {el_name} ({target}) atom(s)."
+            if correct
+            else f"Not quite. {diagram.title} contains {expected} {el_name} ({target}) atom(s)."
+        )
+        matching_ids = [
+            n.id
+            for n in diagram.nodes
+            if str((n.attributes or {}).get("element", "")) == target
+        ]
+        return LearningEvaluationResponse(
+            challenge_id=challenge_id,
+            correct=correct,
+            selected_option_ids=selected_clean,
+            expected_option_ids=[expected],
+            expected_labels=[f"{expected} {el_name} atom(s)"],
+            summary=summary,
+            explanation=(
+                f"Counting all atoms with element '{target}' gives {expected}. "
+                f"Molecular formula: {diagram.domain_model.formula}. "  # type: ignore[union-attr]
+                "This verifies structural composition only and does not infer lab safety or reactivity."
+            ),
+            evidence=[f"Atom counts: {counts}"],
+            related_node_ids=matching_ids,
+            simulation_result=None,
+        )
+
+    if kind_key == "chem_neighbors":
+        node_by_id = {n.id: n for n in diagram.nodes}
+        if target not in node_by_id:
+            raise DomainSimulationError(
+                code="UNKNOWN_TARGET",
+                message=f"Atom '{target}' not found in molecule.",
+                status_code=400,
+            )
+        neighbors = get_atom_neighbors(diagram, target)
+        expected_ids = [n.id for _, n, _ in neighbors]
+        expected_labels = [n.label for _, n, _ in neighbors]
+        selected_set = set(selected_option_ids)
+        correct = selected_set == set(expected_ids)
+        summary = (
+            f"Correct! {node_by_id[target].label} is directly bonded to {_format_list(expected_labels)}."
+            if correct
+            else f"Check the bonds: {node_by_id[target].label} is directly bonded to {_format_list(expected_labels)}."
+        )
+        return LearningEvaluationResponse(
+            challenge_id=challenge_id,
+            correct=correct,
+            selected_option_ids=sorted(selected_set),
+            expected_option_ids=expected_ids,
+            expected_labels=expected_labels,
+            summary=summary,
+            explanation=(
+                f"Direct covalent bonds attached to {node_by_id[target].label}: "
+                f"{', '.join(f'{n.label} ({e.relation.replace('_', ' ')})' for e, n, _ in neighbors)}."
+            ),
+            evidence=[
+                f"{node_by_id[target].label} — {n.label} ({e.relation})"
+                for e, n, _ in neighbors
+            ],
+            related_node_ids=[target, *expected_ids],
+            simulation_result=None,
+        )
+
+    raise DomainSimulationError(
+        code="INVALID_CHALLENGE",
+        message=f"Unsupported chemistry challenge '{challenge_id}'.",
+        status_code=400,
+    )
+
+
 # --- Public API ---
 
 
@@ -977,8 +1130,10 @@ def generate_challenges(diagram: DiagramDocument) -> LearningChallengeSetRespons
         challenges = _build_biology_challenges(diagram)
     elif diagram.domain == "cs_flowchart":
         challenges = _build_flowchart_challenges(diagram)
-    else:
+    elif diagram.domain == "math_plot":
         challenges = _build_math_challenges(diagram)
+    else:
+        challenges = _build_chemistry_challenges(diagram)
 
     if not challenges:
         return LearningChallengeSetResponse(
@@ -1013,4 +1168,6 @@ def evaluate_challenge(
         return _evaluate_biology_challenge(diagram, challenge_id, selected_option_ids)
     if diagram.domain == "cs_flowchart":
         return _evaluate_flowchart_challenge(diagram, challenge_id, selected_option_ids)
-    return _evaluate_math_challenge(diagram, challenge_id, selected_option_ids)
+    if diagram.domain == "math_plot":
+        return _evaluate_math_challenge(diagram, challenge_id, selected_option_ids)
+    return _evaluate_chemistry_challenge(diagram, challenge_id, selected_option_ids)

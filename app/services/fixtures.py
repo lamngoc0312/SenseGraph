@@ -14,6 +14,7 @@ BUNDLED_FIXTURE_FILES: tuple[str, ...] = (
     "biology_food_web.json",
     "cs_flowchart.json",
     "math_plot.json",
+    "chemistry_molecule.json",
 )
 
 

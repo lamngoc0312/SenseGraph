@@ -1,0 +1,73 @@
+{
+  "schema_version": "1.0",
+  "id": "chemistry_molecule",
+  "title": "Formaldehyde Molecule (CH2O)",
+  "domain": "chemistry_molecule",
+  "summary": "Formaldehyde (CH2O, SMILES: C=O) consists of 1 Carbon atom double-bonded to 1 Oxygen atom and single-bonded to 2 Hydrogen atoms. Structural connectivity only; does not infer toxicity, reaction yields, medical properties, or lab safety.",
+  "source": {
+    "mode": "fixture",
+    "filename": "chemistry_molecule.json",
+    "provider": null
+  },
+  "review_status": "confirmed",
+  "nodes": [
+    {
+      "id": "C_1",
+      "kind": "atom",
+      "label": "Carbon C1",
+      "description": "Central carbon atom (standard valence 4).",
+      "attributes": {"element": "C", "max_valence": 4}
+    },
+    {
+      "id": "O_1",
+      "kind": "atom",
+      "label": "Oxygen O1",
+      "description": "Oxygen atom (standard valence 2) double-bonded to Carbon C1.",
+      "attributes": {"element": "O", "max_valence": 2}
+    },
+    {
+      "id": "H_1",
+      "kind": "atom",
+      "label": "Hydrogen H1",
+      "description": "Hydrogen atom (standard valence 1) single-bonded to Carbon C1.",
+      "attributes": {"element": "H", "max_valence": 1}
+    },
+    {
+      "id": "H_2",
+      "kind": "atom",
+      "label": "Hydrogen H2",
+      "description": "Hydrogen atom (standard valence 1) single-bonded to Carbon C1.",
+      "attributes": {"element": "H", "max_valence": 1}
+    }
+  ],
+  "edges": [
+    {
+      "id": "bond_1",
+      "source": "C_1",
+      "target": "O_1",
+      "relation": "double_bond",
+      "description": "Double covalent bond between Carbon C1 and Oxygen O1."
+    },
+    {
+      "id": "bond_2",
+      "source": "C_1",
+      "target": "H_1",
+      "relation": "single_bond",
+      "description": "Single covalent bond between Carbon C1 and Hydrogen H1."
+    },
+    {
+      "id": "bond_3",
+      "source": "C_1",
+      "target": "H_2",
+      "relation": "single_bond",
+      "description": "Single covalent bond between Carbon C1 and Hydrogen H2."
+    }
+  ],
+  "domain_model": {
+    "kind": "molecule",
+    "smiles": "C=O",
+    "formula": "CH2O",
+    "supported_scope_note": "Beginner-level explicit covalent graph only; does not infer toxicity, reaction yields, medical properties, or lab safety."
+  },
+  "warnings": []
+}

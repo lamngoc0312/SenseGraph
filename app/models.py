@@ -13,6 +13,7 @@ DomainType = Literal[
     "biology_food_web",
     "cs_flowchart",
     "math_plot",
+    "chemistry_molecule",
 ]
 SourceMode = Literal["fixture", "ai"]
 ReviewStatus = Literal["unreviewed", "confirmed"]
@@ -27,6 +28,7 @@ NodeKind = Literal[
     "assignment",
     "decision",
     "data_point",
+    "atom",
 ]
 EdgeRelation = Literal[
     "wire",
@@ -35,6 +37,9 @@ EdgeRelation = Literal[
     "branch_true",
     "branch_false",
     "series_next",
+    "single_bond",
+    "double_bond",
+    "triple_bond",
 ]
 SwitchState = Literal["open", "closed"]
 
@@ -150,8 +155,22 @@ class MathPlotModel(BaseModel):
     points: list[MathPlotPoint] = Field(..., min_length=2)
 
 
+class MoleculeModel(BaseModel):
+    """Chemistry domain payload for beginner-level validated covalent molecules."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["molecule"]
+    smiles: str = Field(..., min_length=1)
+    formula: str = Field(..., min_length=1)
+    supported_scope_note: str = (
+        "Beginner-level explicit covalent graph only; does not infer toxicity, "
+        "reaction yields, medical properties, or lab safety."
+    )
+
+
 DomainModel = Annotated[
-    SeriesCircuitModel | FoodWebModel | FlowchartModel | MathPlotModel,
+    SeriesCircuitModel | FoodWebModel | FlowchartModel | MathPlotModel | MoleculeModel,
     Field(discriminator="kind"),
 ]
 
@@ -190,6 +209,10 @@ class DiagramDocument(BaseModel):
         if self.domain == "math_plot" and self.domain_model.kind != "math_plot":
             raise ValueError(
                 "domain_model.kind must be 'math_plot' when domain is 'math_plot'."
+            )
+        if self.domain == "chemistry_molecule" and self.domain_model.kind != "molecule":
+            raise ValueError(
+                "domain_model.kind must be 'molecule' when domain is 'chemistry_molecule'."
             )
         return self
 
@@ -265,6 +288,16 @@ class DiagramStateResponse(BaseModel):
     point_count: int | None = None
     x_label: str | None = None
     y_label: str | None = None
+    smiles: str | None = None
+    formula: str | None = None
+    atom_counts: dict[str, int] = Field(default_factory=dict)
+
+
+class SmilesParseRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    smiles: str = Field(..., min_length=1, max_length=80)
+    title: str | None = None
 
 
 class MathIntercept(BaseModel):

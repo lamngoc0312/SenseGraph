@@ -41,6 +41,14 @@
       cardClass: "module-card-math",
       buttonClass: "btn-teal",
     },
+    chemistry_molecule: {
+      heading: "Chemistry Explorer",
+      summary:
+        "Explore beginner-level covalent molecules (atoms, single/double/triple bonds, and validated SMILES). Structural connectivity only — no toxicity or safety inference.",
+      buttonLabel: "Explore Example Molecule",
+      cardClass: "module-card-chem",
+      buttonClass: "btn-primary",
+    },
   };
 
   const state = {
@@ -129,6 +137,7 @@
     switchBiologyBtn: document.getElementById("switch-biology-btn"),
     switchCsBtn: document.getElementById("switch-cs-btn"),
     switchMathBtn: document.getElementById("switch-math-btn"),
+    switchChemBtn: document.getElementById("switch-chem-btn"),
     modeExploreBtn: document.getElementById("mode-explore-btn"),
     modeLabBtn: document.getElementById("mode-lab-btn"),
     learningLabPanel: document.getElementById("learning-lab-panel"),
@@ -210,6 +219,9 @@
     mathCompareBtn: document.getElementById("math-compare-btn"),
     mathIntervalResult: document.getElementById("math-interval-result"),
     mathAnalysisList: document.getElementById("math-analysis-list"),
+    chemControlsPanel: document.getElementById("chem-controls-panel"),
+    chemSmilesInput: document.getElementById("chem-smiles-input"),
+    chemParseBtn: document.getElementById("chem-parse-btn"),
     experimentLimitation: document.getElementById("experiment-limitation"),
 
     allRelationsList: document.getElementById("all-relations-list"),
@@ -309,6 +321,7 @@
     if (domain === "biology_food_web") return "Biology — Food Web";
     if (domain === "cs_flowchart") return "Computer Science — Flowchart";
     if (domain === "math_plot") return "Mathematics — XY Line Plot";
+    if (domain === "chemistry_molecule") return "Chemistry — Molecular Structure";
     return domain;
   }
 
@@ -1963,6 +1976,12 @@
           value: `${state.mathAnalysis.global_max.y} ${dm.y_unit}`.trim(),
         });
       }
+    } else if (diagram.domain === "chemistry_molecule") {
+      const dm = diagram.domain_model;
+      stats.push({ label: "Formula", value: dm.formula });
+      stats.push({ label: "SMILES", value: dm.smiles });
+      stats.push({ label: "Atoms", value: String(diagram.nodes.length) });
+      stats.push({ label: "Covalent Bonds", value: String(diagram.edges.length) });
     }
 
     for (const stat of stats) {
@@ -2258,6 +2277,32 @@
 
       dom.selectedRelationships.appendChild(outGroup);
       dom.selectedRelationships.appendChild(inGroup);
+    } else if (diagram.domain === "chemistry_molecule") {
+      const bonded = [];
+      for (const edge of diagram.edges) {
+        const bondLabel = edge.relation.replace("_", " ");
+        if (edge.source === node.id && nodeMap.has(edge.target)) {
+          bonded.push({
+            neighbor: nodeMap.get(edge.target),
+            description: `Bonded to ${nodeMap.get(edge.target).label} via ${bondLabel}.`,
+          });
+        } else if (edge.target === node.id && nodeMap.has(edge.source)) {
+          bonded.push({
+            neighbor: nodeMap.get(edge.source),
+            description: `Bonded to ${nodeMap.get(edge.source).label} via ${bondLabel}.`,
+          });
+        }
+      }
+      const bGroup = document.createElement("div");
+      bGroup.className = "relation-group";
+      const bTitle = document.createElement("p");
+      bTitle.className = "relation-group-title";
+      bTitle.textContent = "Direct covalent bonds";
+      bGroup.appendChild(bTitle);
+      bGroup.appendChild(
+        buildNeighborList(bonded, "No covalent bonds connected to this atom.")
+      );
+      dom.selectedRelationships.appendChild(bGroup);
     }
   }
 
@@ -2377,6 +2422,25 @@
       renderMathControlsPanel(diagram);
       dom.experimentLimitation.textContent =
         "Mathematical boundary: Extrema, intervals, and intercepts are computed strictly over the finite provided dataset. No asymptotes or unseen extrapolations are invented.";
+      dom.chemControlsPanel.hidden = true;
+    } else if (diagram.domain === "chemistry_molecule") {
+      dom.flowchartInputsBlock.hidden = true;
+      dom.flowchartTracePanel.hidden = true;
+      dom.mathControlsPanel.hidden = true;
+      dom.chemControlsPanel.hidden = false;
+      dom.chemSmilesInput.value = diagram.domain_model.smiles || "";
+      dom.experimentGuidance.textContent =
+        "Inspect atoms, covalent bond orders, and direct neighbors, or parse another validated beginner SMILES string.";
+      dom.experimentLimitation.textContent =
+        "Chemistry safety boundary: Beginner-level explicit covalent structure only. Does NOT infer toxicity, reaction yields, medical properties, or lab safety.";
+    }
+
+    if (
+      diagram.domain === "physics_circuit" ||
+      diagram.domain === "biology_food_web" ||
+      diagram.domain === "cs_flowchart"
+    ) {
+      dom.chemControlsPanel.hidden = true;
     }
 
     if (diagram.domain === "physics_circuit" || diagram.domain === "biology_food_web") {
@@ -2471,6 +2535,9 @@
       const dm = diagram.domain_model;
       dom.domainConvention.textContent =
         `Plot convention: ${dm.x_label}${dm.x_unit ? ` (${dm.x_unit})` : ""} on the horizontal axis and ${dm.y_label}${dm.y_unit ? ` (${dm.y_unit})` : ""} on the vertical axis. Exact and estimated points are explicitly labeled.`;
+    } else if (diagram.domain === "chemistry_molecule") {
+      dom.domainConvention.textContent =
+        "Chemistry convention: Nodes are explicit atoms and edges are single, double, or triple covalent bonds verified against standard valences.";
     } else {
       dom.domainConvention.textContent =
         "Circuit convention: Wires connect components in one continuous series loop. Bulbs turn on only when the loop is complete and the switch is closed.";
@@ -2912,6 +2979,36 @@
     dom.switchBiologyBtn.addEventListener("click", () => loadExample("biology_food_web"));
     dom.switchCsBtn.addEventListener("click", () => loadExample("cs_flowchart"));
     dom.switchMathBtn.addEventListener("click", () => loadExample("math_plot"));
+    dom.switchChemBtn.addEventListener("click", () => loadExample("chemistry_molecule"));
+    dom.chemParseBtn.addEventListener("click", async () => {
+      clearError();
+      const smiles = dom.chemSmilesInput.value.trim();
+      if (!smiles) {
+        showError("Enter a SMILES string (e.g., O, C=O, O=C=O, CCO).");
+        return;
+      }
+      try {
+        const doc = await apiRequest("/api/chemistry/parse-smiles", {
+          method: "POST",
+          body: JSON.stringify({ smiles }),
+        });
+        const backendState = await fetchBackendState(doc);
+        state.baselineDiagram = deepClone(doc);
+        state.currentDiagram = deepClone(doc);
+        state.backendState = backendState;
+        state.selectedNodeId = doc.nodes[0].id;
+        state.lastSimulation = null;
+        state.explorerMode = "explore";
+        resetLabState();
+        await loadLabChallengesForBaseline();
+        renderExplorer();
+        dom.diagramTitle.focus();
+        announce(`Loaded validated molecule ${doc.title}. ${doc.summary}`);
+      } catch (err) {
+        showError(err.message);
+        announce(`SMILES validation error: ${err.message}`);
+      }
+    });
     dom.tracePrevBtn.addEventListener("click", () => stepFlowchartTrace(-1));
     dom.traceNextBtn.addEventListener("click", () => stepFlowchartTrace(1));
     dom.mathPrevPtBtn.addEventListener("click", () => stepMathPoint(-1));

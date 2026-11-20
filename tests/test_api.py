@@ -24,6 +24,7 @@ def test_health_endpoint_default_and_configured_without_leaking_key() -> None:
                 "biology_food_web",
                 "cs_flowchart",
                 "math_plot",
+                "chemistry_molecule",
             ],
         }
 
@@ -42,12 +43,13 @@ def test_examples_list_and_detail_endpoints() -> None:
         list_resp = client.get("/api/examples")
         assert list_resp.status_code == 200
         items = list_resp.json()
-        assert len(items) == 4
+        assert len(items) == 5
         assert {item["id"] for item in items} == {
             "physics_series",
             "biology_food_web",
             "cs_flowchart",
             "math_plot",
+            "chemistry_molecule",
         }
         assert all(
             item["source_label"] == "Pre-annotated demo — no AI used" for item in items
@@ -58,6 +60,7 @@ def test_examples_list_and_detail_endpoints() -> None:
             "biology_food_web",
             "cs_flowchart",
             "math_plot",
+            "chemistry_molecule",
         ):
             detail_resp = client.get(f"/api/examples/{example_id}")
             assert detail_resp.status_code == 200

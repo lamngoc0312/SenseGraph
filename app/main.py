@@ -12,6 +12,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.domains import DomainSimulationError
 from app.domains.biology import remove_organism
+from app.domains.chemistry import get_atom_counts, parse_smiles_to_molecule
 from app.domains.flowchart import execute_flowchart
 from app.domains.mathematics import analyze_math_plot, parse_csv_to_math_plot
 from app.domains.physics import evaluate_circuit_state, toggle_switch
@@ -32,9 +33,11 @@ from app.models import (
     MathAnalysisResponse,
     MathCsvImportRequest,
     MathPlotModel,
+    MoleculeModel,
     SeriesCircuitModel,
     SimulationRequest,
     SimulationResponse,
+    SmilesParseRequest,
     ValidationResponse,
 )
 from app.services.ai_vision import (
@@ -249,13 +252,25 @@ def create_app(
                 flowchart_inputs=dict(diagram.domain_model.inputs),
                 max_steps=diagram.domain_model.max_steps,
             )
-        assert isinstance(diagram.domain_model, MathPlotModel)
+        if diagram.domain == "math_plot":
+            assert isinstance(diagram.domain_model, MathPlotModel)
+            return DiagramStateResponse(
+                domain="math_plot",
+                point_count=len(diagram.domain_model.points),
+                x_label=diagram.domain_model.x_label,
+                y_label=diagram.domain_model.y_label,
+            )
+        assert isinstance(diagram.domain_model, MoleculeModel)
         return DiagramStateResponse(
-            domain="math_plot",
-            point_count=len(diagram.domain_model.points),
-            x_label=diagram.domain_model.x_label,
-            y_label=diagram.domain_model.y_label,
+            domain="chemistry_molecule",
+            smiles=diagram.domain_model.smiles,
+            formula=diagram.domain_model.formula,
+            atom_counts=get_atom_counts(diagram),
         )
+
+    @application.post("/api/chemistry/parse-smiles", response_model=DiagramDocument)
+    def post_chemistry_parse_smiles(request: SmilesParseRequest) -> DiagramDocument:
+        return parse_smiles_to_molecule(smiles=request.smiles, title=request.title)
 
     @application.post("/api/flowchart/trace", response_model=FlowchartTraceResponse)
     def post_flowchart_trace(request: FlowchartTraceRequest) -> FlowchartTraceResponse:

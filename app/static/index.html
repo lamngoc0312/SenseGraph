@@ -273,6 +273,9 @@
           <button type="button" id="switch-math-btn" class="btn btn-ghost">
             Load Math Plot
           </button>
+          <button type="button" id="switch-chem-btn" class="btn btn-ghost">
+            Load Molecule
+          </button>
         </div>
       </div>
 
@@ -563,6 +566,27 @@
               </div>
               <p id="math-interval-result" class="summary-text"></p>
               <ul id="math-analysis-list" class="changes-list"></ul>
+            </div>
+
+            <!-- Phase 10: Chemistry SMILES Loader -->
+            <div id="chem-controls-panel" class="flowchart-trace-panel" hidden>
+              <h4>Load a Beginner Molecule from SMILES</h4>
+              <p class="panel-hint">
+                Enter a simple covalent SMILES string (e.g., <code>O</code> for water,
+                <code>O=C=O</code> for CO2, <code>CCO</code> for ethanol). Validated by
+                the Python valence parser.
+              </p>
+              <div class="form-row">
+                <div class="form-field">
+                  <label for="chem-smiles-input">SMILES string</label>
+                  <input type="text" id="chem-smiles-input" value="C=O" />
+                </div>
+              </div>
+              <div class="tour-controls">
+                <button type="button" id="chem-parse-btn" class="btn btn-primary btn-sm">
+                  Validate &amp; Load Molecule
+                </button>
+              </div>
             </div>
 
             <p id="experiment-limitation" class="limitation-note"></p>

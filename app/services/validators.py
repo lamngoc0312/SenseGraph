@@ -7,6 +7,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from app.domains.biology import validate_food_web
+from app.domains.chemistry import BOND_ORDER, validate_molecule
 from app.domains.flowchart import (
     ALLOWED_FLOWCHART_NODE_KINDS,
     ALLOWED_FLOWCHART_RELATIONS,
@@ -105,6 +106,18 @@ def validate_diagram(diagram: DiagramDocument) -> ValidationResponse:
                 structural_errors.append(
                     f"Edge '{edge.id}' has relation '{edge.relation}', expected 'series_next'."
                 )
+    elif diagram.domain == "chemistry_molecule":
+        for node in diagram.nodes:
+            if node.kind != "atom":
+                structural_errors.append(
+                    f"Node '{node.id}' has kind '{node.kind}', expected 'atom' in chemistry_molecule."
+                )
+        for edge in diagram.edges:
+            if edge.relation not in BOND_ORDER:
+                structural_errors.append(
+                    f"Edge '{edge.id}' has relation '{edge.relation}', "
+                    "expected 'single_bond', 'double_bond', or 'triple_bond'."
+                )
 
     if structural_errors:
         return ValidationResponse(
@@ -144,13 +157,23 @@ def validate_diagram(diagram: DiagramDocument) -> ValidationResponse:
             errors=flowchart_result.errors,
         )
 
-    math_result = validate_math_plot(diagram)
-    warnings.extend(math_result.warnings)
+    if diagram.domain == "math_plot":
+        math_result = validate_math_plot(diagram)
+        warnings.extend(math_result.warnings)
+        return ValidationResponse(
+            valid=True,
+            simulation_ready=math_result.simulation_ready,
+            warnings=warnings,
+            errors=math_result.errors,
+        )
+
+    chem_result = validate_molecule(diagram)
+    warnings.extend(chem_result.warnings)
     return ValidationResponse(
         valid=True,
-        simulation_ready=math_result.simulation_ready,
+        simulation_ready=chem_result.simulation_ready,
         warnings=warnings,
-        errors=math_result.errors,
+        errors=chem_result.errors,
     )
 
 

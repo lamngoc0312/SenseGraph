@@ -45,6 +45,7 @@ def test_fixture_repository_returns_deep_copies() -> None:
         "biology_food_web",
         "cs_flowchart",
         "math_plot",
+        "chemistry_molecule",
     ]
 
     first = repo.get_example("physics_series")

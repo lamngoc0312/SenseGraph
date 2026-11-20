@@ -34,7 +34,8 @@
         "physics_circuit",
         "biology_food_web",
         "cs_flowchart",
-        "math_plot"
+        "math_plot",
+        "chemistry_molecule"
       ]
     },
     "summary": {
@@ -102,7 +103,8 @@
               "input",
               "assignment",
               "decision",
-              "data_point"
+              "data_point",
+              "atom"
             ]
           },
           "label": {
@@ -150,7 +152,10 @@
               "flow",
               "branch_true",
               "branch_false",
-              "series_next"
+              "series_next",
+              "single_bond",
+              "double_bond",
+              "triple_bond"
             ]
           },
           "description": {
@@ -319,6 +324,31 @@
               }
             }
           }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "smiles",
+            "formula"
+          ],
+          "properties": {
+            "kind": {
+              "const": "molecule"
+            },
+            "smiles": {
+              "type": "string",
+              "minLength": 1
+            },
+            "formula": {
+              "type": "string",
+              "minLength": 1
+            },
+            "supported_scope_note": {
+              "type": "string"
+            }
+          }
         }
       ]
     },
@@ -478,6 +508,32 @@
             "properties": {
               "kind": {
                 "const": "math_plot"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "domain": {
+            "const": "chemistry_molecule"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "domain_model": {
+            "type": "object",
+            "required": [
+              "kind",
+              "smiles",
+              "formula"
+            ],
+            "properties": {
+              "kind": {
+                "const": "molecule"
               }
             }
           }
