@@ -182,3 +182,29 @@ def test_simulate_error_handling() -> None:
         )
         assert resp_bad_target.status_code == 400
         assert resp_bad_target.json()["error"]["code"] == "UNKNOWN_TARGET"
+
+
+def test_frontend_index_and_static_assets_served_with_accessibility_landmarks() -> None:
+    with _make_client() as client:
+        index_resp = client.get("/")
+        assert index_resp.status_code == 200
+        html = index_resp.text
+        assert '<html lang="en">' in html
+        assert 'class="skip-link"' in html
+        assert '<main id="main-content"' in html
+        assert 'role="status"' in html
+        assert 'aria-live="polite"' in html
+        assert "Pre-annotated demo" in html
+
+        css_resp = client.get("/static/styles.css")
+        assert css_resp.status_code == 200
+        assert "focus-visible" in css_resp.text
+
+        js_resp = client.get("/static/app.js")
+        assert js_resp.status_code == 200
+        assert "/api/simulate" in js_resp.text
+
+        for img_name in ("physics_series.png", "biology_food_web.png"):
+            img_resp = client.get(f"/fixtures/images/{img_name}")
+            assert img_resp.status_code == 200
+            assert img_resp.headers["content-type"].startswith("image/")

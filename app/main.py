@@ -6,7 +6,8 @@ from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.domains import DomainSimulationError
@@ -26,7 +27,7 @@ from app.models import (
 from app.services.description import describe_diagram
 from app.services.fixtures import FixtureRepository
 from app.services.validators import validate_diagram, validate_raw_diagram
-from app.settings import SUPPORTED_DOMAINS, Settings, load_settings
+from app.settings import PROJECT_ROOT, SUPPORTED_DOMAINS, Settings, load_settings
 
 
 class APIError(Exception):
@@ -74,6 +75,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     application.state.settings = active_settings
     application.state.fixture_repo = fixture_repo
+
+    static_dir = PROJECT_ROOT / "app" / "static"
+    fixture_images_dir = active_settings.fixtures_dir / "images"
+    if static_dir.is_dir():
+        application.mount(
+            "/static", StaticFiles(directory=str(static_dir)), name="static"
+        )
+    if fixture_images_dir.is_dir():
+        application.mount(
+            "/fixtures/images",
+            StaticFiles(directory=str(fixture_images_dir)),
+            name="fixture-images",
+        )
+
+    @application.get("/", include_in_schema=False)
+    def serve_index() -> FileResponse:
+        return FileResponse(static_dir / "index.html")
 
     @application.exception_handler(APIError)
     async def handle_api_error(_request: Request, exc: APIError) -> JSONResponse:

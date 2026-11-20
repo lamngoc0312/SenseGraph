@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SenseGraph — Explore STEM Beyond Sight</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+
+  <header class="site-header">
+    <div class="container header-inner">
+      <div class="brand-group">
+        <a href="#main-content" class="brand-name" id="brand-home-link">SenseGraph</a>
+        <p class="brand-tagline">Explore STEM diagrams beyond sight</p>
+      </div>
+      <div class="header-status" aria-label="Application mode">
+        <span id="health-badge" class="badge badge-neutral">Checking backend status…</span>
+      </div>
+    </div>
+  </header>
+
+  <main id="main-content" class="container main-content" tabindex="-1">
+    <!-- Polite live region for screen-reader announcements -->
+    <div
+      id="status-announcer"
+      class="sr-only"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+    ></div>
+
+    <!-- Global error alert -->
+    <div id="error-banner" class="alert-error" role="alert" hidden>
+      <p id="error-banner-text"></p>
+      <button type="button" id="error-dismiss-btn" class="btn btn-secondary btn-sm">
+        Dismiss error
+      </button>
+    </div>
+
+    <!-- Welcome & Domain Selection -->
+    <section id="welcome-section" class="welcome-section" aria-labelledby="welcome-heading">
+      <div class="hero-block">
+        <p class="eyebrow">Accessible Interactive STEM Learning</p>
+        <h1 id="welcome-heading">Explore STEM Diagrams Without Relying on Sight</h1>
+        <p class="hero-lead">
+          SenseGraph converts structured science diagrams into a keyboard-navigable
+          semantic graph. Inspect each component, follow its relationships, and run
+          verified experiments with clear textual feedback.
+        </p>
+        <div class="info-callout" role="note">
+          <p>
+            <strong>Demo mode notice:</strong> The examples below are
+            <span class="highlight-text">Pre-annotated demo — no AI used</span>.
+            All interactions work with a keyboard and screen reader. Voice output is
+            optional and not required.
+          </p>
+        </div>
+      </div>
+
+      <section aria-labelledby="modules-heading" class="modules-section">
+        <div class="section-header">
+          <h2 id="modules-heading">Choose a Learning Module</h2>
+          <p class="section-subtitle">
+            Select a verified example diagram to start exploring immediately.
+          </p>
+        </div>
+
+        <div id="examples-loading" class="loading-box" aria-live="polite">
+          Loading example diagrams…
+        </div>
+
+        <div id="examples-grid" class="examples-grid" hidden>
+          <!-- Populated dynamically from GET /api/examples -->
+        </div>
+      </section>
+
+      <section aria-labelledby="ai-notice-heading" class="future-ai-panel">
+        <h2 id="ai-notice-heading">Image Upload &amp; Live AI Analysis</h2>
+        <p id="ai-status-text">
+          Live image extraction with an external vision provider is scheduled for a
+          later phase and is not enabled yet. Use the pre-annotated Physics and Biology
+          examples above to explore the verified simulation engines.
+        </p>
+      </section>
+    </section>
+
+    <!-- Diagram Explorer Workspace -->
+    <section
+      id="explorer-section"
+      class="explorer-section"
+      aria-labelledby="diagram-title"
+      hidden
+    >
+      <div class="explorer-topbar">
+        <div class="explorer-title-group">
+          <button type="button" id="back-to-home-btn" class="btn btn-secondary">
+            Back to modules
+          </button>
+          <div class="title-and-badges">
+            <h2 id="diagram-title" tabindex="-1">Diagram Title</h2>
+            <div class="badge-row" aria-label="Diagram provenance and status">
+              <span id="source-badge" class="badge badge-demo">
+                Pre-annotated demo — no AI used
+              </span>
+              <span id="review-badge" class="badge badge-confirmed">Confirmed</span>
+              <span id="domain-badge" class="badge badge-domain">Domain</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="quick-switch" aria-label="Switch example module">
+          <button type="button" id="switch-physics-btn" class="btn btn-ghost">
+            Load Physics Circuit
+          </button>
+          <button type="button" id="switch-biology-btn" class="btn btn-ghost">
+            Load Biology Food Web
+          </button>
+        </div>
+      </div>
+
+      <!-- Diagram Overview -->
+      <section class="panel overview-panel" aria-labelledby="overview-heading">
+        <h3 id="overview-heading">Diagram Overview</h3>
+        <p id="diagram-summary" class="summary-text"></p>
+        <p id="domain-convention" class="convention-note"></p>
+        <dl id="diagram-stats" class="stats-grid" aria-label="Diagram summary statistics">
+          <!-- Populated dynamically -->
+        </dl>
+      </section>
+
+      <!-- Experiment Feedback Banner -->
+      <section
+        id="feedback-panel"
+        class="panel feedback-panel"
+        aria-labelledby="feedback-heading"
+        hidden
+      >
+        <h3 id="feedback-heading">Latest Experiment Result</h3>
+        <p id="feedback-announcement" class="feedback-announcement"></p>
+        <ul id="feedback-changes" class="changes-list"></ul>
+      </section>
+
+      <!-- Main Explorer Grid -->
+      <div class="explorer-grid">
+        <!-- Left Column: Component List -->
+        <section class="panel" aria-labelledby="components-heading">
+          <h3 id="components-heading">Components in This Diagram</h3>
+          <p class="panel-hint">
+            Select any item to inspect its description, connections, and available actions.
+          </p>
+          <ul id="component-list" class="component-list">
+            <!-- Populated dynamically with native buttons -->
+          </ul>
+        </section>
+
+        <!-- Right Column: Selected Component Detail & Experiment Controls -->
+        <div class="detail-column">
+          <section class="panel" aria-labelledby="selected-heading">
+            <h3 id="selected-heading" tabindex="-1">Selected Component Details</h3>
+            <div id="selected-detail" class="selected-detail">
+              <!-- Populated dynamically -->
+            </div>
+
+            <div class="relationships-block" aria-labelledby="relationships-heading">
+              <h4 id="relationships-heading">Direct Connections &amp; Navigation</h4>
+              <div id="selected-relationships">
+                <!-- Populated dynamically with neighbor jump buttons -->
+              </div>
+            </div>
+          </section>
+
+          <section class="panel experiment-panel" aria-labelledby="experiment-heading">
+            <h3 id="experiment-heading">Experiment Controls</h3>
+            <p id="experiment-guidance" class="panel-hint"></p>
+
+            <div id="experiment-actions" class="experiment-actions">
+              <!-- Domain action button + Reset Experiment button -->
+            </div>
+
+            <p id="experiment-limitation" class="limitation-note"></p>
+          </section>
+        </div>
+      </div>
+
+      <!-- Full Textual Graph & Supplementary Visual Preview -->
+      <div class="reference-grid">
+        <section class="panel" aria-labelledby="all-relations-heading">
+          <h3 id="all-relations-heading">Complete Relationship List (Text Representation)</h3>
+          <p class="panel-hint">
+            Every connection in the current diagram is listed below in plain text.
+          </p>
+          <ul id="all-relations-list" class="relations-text-list">
+            <!-- Populated dynamically -->
+          </ul>
+        </section>
+
+        <section
+          id="visual-preview-section"
+          class="panel visual-panel"
+          aria-labelledby="visual-preview-heading"
+        >
+          <h3 id="visual-preview-heading">Supplementary Visual Preview</h3>
+          <p class="panel-hint">
+            Optional reference image for sighted users. All learning tasks can be
+            completed using the text and keyboard controls above.
+          </p>
+          <figure class="diagram-figure">
+            <img
+              id="diagram-preview-img"
+              src=""
+              alt=""
+              aria-describedby="diagram-summary"
+            />
+            <figcaption id="diagram-preview-caption"></figcaption>
+          </figure>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <p>
+        <strong>SenseGraph</strong> — Accessible STEM diagram learning prototype.
+        Deterministic Python simulation engines for Physics P0 and Biology P0.
+      </p>
+      <p class="footer-note">
+        Keyboard tips: use Tab and Shift+Tab to move between controls, and Enter or
+        Space to activate buttons.
+      </p>
+    </div>
+  </footer>
+
+  <script src="/static/app.js" defer></script>
+</body>
+</html>
