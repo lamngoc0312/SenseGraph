@@ -95,7 +95,9 @@ body {
 a:focus-visible,
 button:focus-visible,
 input:focus-visible,
+textarea:focus-visible,
 select:focus-visible,
+summary:focus-visible,
 [tabindex="-1"]:focus {
   outline: 3px solid var(--focus-ring);
   outline-offset: 3px;
@@ -426,6 +428,7 @@ h4 {
 
 .form-field input[type="text"],
 .form-field input[type="file"],
+.form-field textarea,
 .form-field select {
   min-height: 44px;
   padding: 0.55rem 0.75rem;
@@ -435,6 +438,27 @@ h4 {
   background-color: var(--bg-surface);
   border: 2px solid var(--border-strong);
   border-radius: var(--radius-sm);
+}
+
+.csv-import-details {
+  margin-top: 0.85rem;
+  padding: 0.75rem;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.csv-import-details summary {
+  font-weight: 700;
+  cursor: pointer;
+  color: var(--accent-primary);
+}
+
+.csv-import-body {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
 }
 
 .field-hint {

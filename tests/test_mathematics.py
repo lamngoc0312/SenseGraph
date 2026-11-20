@@ -150,3 +150,5 @@ def test_math_api_endpoints_and_frontend_controls() -> None:
         assert 'id="math-prev-pt-btn"' in html
         assert 'id="math-next-pt-btn"' in html
         assert 'id="math-sonify-pt-btn"' in html
+        assert 'id="math-csv-input"' in html
+        assert 'id="math-csv-import-btn"' in html

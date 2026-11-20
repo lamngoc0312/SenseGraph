@@ -566,6 +566,31 @@
               </div>
               <p id="math-interval-result" class="summary-text"></p>
               <ul id="math-analysis-list" class="changes-list"></ul>
+              <details class="csv-import-details">
+                <summary>Import custom XY data (CSV)</summary>
+                <div class="csv-import-body">
+                  <div class="form-field">
+                    <label for="math-csv-title">Plot title</label>
+                    <input type="text" id="math-csv-title" value="Custom XY Plot" />
+                  </div>
+                  <div class="form-field">
+                    <label for="math-csv-input">CSV rows (x,y or x,y,exact)</label>
+                    <textarea
+                      id="math-csv-input"
+                      rows="4"
+                    >x,y
+0,1
+1,3
+2,2
+3,5</textarea>
+                  </div>
+                  <div class="tour-controls">
+                    <button type="button" id="math-csv-import-btn" class="btn btn-secondary btn-sm">
+                      Validate &amp; Import CSV
+                    </button>
+                  </div>
+                </div>
+              </details>
             </div>
 
             <!-- Phase 10: Chemistry SMILES Loader -->

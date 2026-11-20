@@ -5,50 +5,54 @@
 - **Hackathon:** STEM2Connect AI Hackathon 2026
 - **Primary Track:** Education · **Related Social Impact:** Community Impact
 - **Stack:** Python 3.11–3.13, FastAPI, Pydantic v2, Vanilla HTML5/CSS/JS, Google Gemini (`google-genai`), Pytest
-- **Release Candidate:** `v1.0.0-rc1` (Phases 1–12 complete — see [docs/EVIDENCE_MATRIX.md](docs/EVIDENCE_MATRIX.md) and [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md))
+- **Release Candidate:** `v1.0.0-rc2` (Phases 1–13 complete; 82 automated tests passing; 5 STEM domains implemented)
 
 ---
 
 ## 1. Problem & Target User
 
-Many foundational STEM concepts—series electrical circuits, food webs, and energy flows—are taught through diagrams whose meaning lives in **wires, arrows, symbols, and graph connectivity**. A static image or a single-sentence alt-text caption does not allow a blind or visually impaired student to **independently inspect relationships, trace paths, or experiment with how the system behaves**.
+Many foundational STEM concepts—electrical circuits, food webs, algorithm flowcharts, mathematical plots, and molecular structures—are taught through diagrams whose meaning lives in **wires, arrows, symbols, branches, and graph connectivity**. A static image or a single-sentence alt-text caption does not allow a blind or visually impaired student to **independently inspect relationships, trace paths, or experiment with how the system behaves**.
 
 - **Primary user:** A blind or visually impaired secondary or university student using a laptop with keyboard navigation and assistive technology (such as NVDA or VoiceOver).
-- **Secondary user:** A sighted educator who reviews and corrects AI-extracted diagrams before sharing accessible learning materials.
+- **Secondary user:** A sighted educator who reviews and corrects extracted diagrams before sharing accessible learning materials.
 
 ---
 
 ## 2. Core Value & Six-Step Learning Pipeline
 
-SenseGraph turns supported STEM diagrams into an editable, verifiable semantic graph and combines **Explore Freely** with a **Guided Learning Lab (Predict → Experiment → Explain)**:
+SenseGraph represents supported STEM diagrams as a validated, editable semantic graph (`contracts/diagram.schema.json`) and combines **Explore Freely**, a **Guided Learning Lab (Predict → Experiment → Explain)**, a **Text-First Guided Tour**, a synchronized **Interactive SVG Graph**, and an **Evidence-Grounded STEM Tutor**:
 
 ```text
-1. Select Pre-Annotated Demo or Upload Diagram Image
+1. Select Pre-Annotated Demo, Import Structured Data (CSV/SMILES), or Upload Diagram Image
         ↓
-2. Gemini Vision Proposes Semantic Graph (optional, with explicit consent)
+2. Optional Gemini Vision Proposal (Physics, Biology, CS Flowchart; requires explicit consent)
         ↓
 3. Deterministic Structural & Scientific Validation (Python)
         ↓
-4. Human Review & Correction (labels, types, wires, arrow directions)
+4. Human Review & Correction (labels, types, wires, arrow directions, branches)
         ↓
-5. Two Equivalent Explorers: Text/Keyboard Guided Tour + Interactive SVG
+5. Two Equivalent Explorers: Text/Keyboard Guided Tour + Interactive SVG (aria-hidden)
         ↓
-6. Deterministic Experiment & Guided Learning Lab (Predict → Experiment → Explain)
+6. Deterministic Experiments, Guided Learning Lab & Evidence-Grounded STEM Tutor
 ```
 
 ---
 
-## 3. What AI Does vs. What Deterministic Python Engines Do
+## 3. Supported Domains & Honest Scientific Boundaries
 
-| Layer | Responsibility | Strict Boundary |
-|---|---|---|
-| **Google Gemini (`google-genai`)** | Extracts tentative nodes, edges, warnings, and domain payload from an uploaded PNG/JPEG/WEBP image | Treated as **untrusted**; never auto-confirmed; never runs simulations; embedded image text is treated strictly as data |
-| **Schema & Validator (`app/services/validators.py`)** | Enforces `contracts/diagram.schema.json`, unique IDs, valid endpoints, domain kinds/relations, and series-ring topology | Rejects unknown Physics symbols (`422`) instead of coercing them to bulbs; never invents missing wires |
-| **Human Review UI** | Lets users inspect warnings/errors, edit labels/types/edges, swap Biology arrows, and explicitly confirm | Simulation stays blocked (`403`/`422`) until valid and confirmed |
-| **Physics Engine (`app/domains/physics.py`)** | Evaluates qualitative single-loop series circuits (1 battery, 1 switch, 1–2 bulbs) | Qualitative ON/OFF only; no voltage, current, resistance, or parallel circuits |
-| **Biology Engine (`app/domains/biology.py`)** | Queries directed `food/prey -> consumer/predator` relations/paths and removes an organism + incident edges | Graph relationship changes only; explicitly disclaims extinction or population predictions |
-| **CS Flowchart Engine (`app/domains/flowchart.py`)** | Parses and executes restricted integer/boolean assignments, True/False decisions, and finite loops step-by-step | Explicit recursive-descent parser only (never `eval`/`exec`); bounded to `<= 200` steps & `0.5s` timeout |
-| **Learning Lab (`app/services/learning.py`)** | Generates & grades Predict → Experiment → Explain challenges directly from Python engines | Zero LLM grading; session-only progress (no accounts/DB) |
+Core P0 hackathon domains (`physics_circuit`, `biology_food_web`) are always enabled. Post-hackathon domain expansions (`cs_flowchart`, `math_plot`, `chemistry_molecule`) can be toggled via `ENABLE_EXPERIMENTAL_DOMAINS` (`true` by default; set `false` for P0-only mode).
+
+| Domain | Input Modes | Deterministic Engine Responsibility | Strict Scientific Boundary |
+|---|---|---|---|
+| **Physics P0 (`physics_circuit`)** | Pre-annotated fixture; optional Gemini Vision upload + human review | Single-loop series circuit (1 battery, 1 switch, 1–2 bulbs); derives `loop_wired` from edges; qualitative bulb ON/OFF toggle | Rejects unknown symbols (`422`) rather than coercing to bulbs; no voltage, current, resistance, or parallel circuits |
+| **Biology P0 (`biology_food_web`)** | Pre-annotated fixture; optional Gemini Vision upload + human review | Directed `food/prey -> consumer/predator` energy flow; neighbor/path queries; organism removal reporting exact disappeared & remaining edges | Graph relationship changes only; explicitly disclaims extinction or population predictions |
+| **CS Flowchart (`cs_flowchart`, experimental)** | Pre-annotated fixture; optional Gemini Vision upload + human review | Safe recursive-descent expression parser (zero `eval`/`exec`); integer/boolean assignments, True/False decisions, bounded step trace (`<= 200` steps, `0.5s` timeout) | Restricted integer/boolean grammar only; halts infinite loops safely |
+| **Mathematics (`math_plot`, experimental)** | Pre-annotated fixture; **CSV structured data import** (not image-to-graph recognition) | Finite unique-`x` XY plots; global/local extrema, monotonic intervals, average rates of change, exact vs interpolated intercepts; optional volume-limited Web Audio sonification | Strictly finite given dataset; never extrapolates or invents asymptotes |
+| **Chemistry (`chemistry_molecule`, experimental)** | Pre-annotated fixture; **SMILES structured input** (not image-to-graph recognition) | Pure-Python beginner SMILES parser & covalent valence validator (`H, C, N, O, F, Cl, Br, S, P`); single/double/triple bonds, atom counts, bond paths | Rejects aromaticity, stereochemistry, ionic charges, duplicate bonds, and invalid valence; never infers toxicity, yields, or lab safety |
+
+### What AI Does vs. Deterministic Python Engines
+- **Gemini Vision (`app/services/ai_vision.py`):** Proposes tentative `unreviewed` graphs for Physics, Biology, and CS Flowchart images only when configured with `GEMINI_API_KEY` and explicit user consent. Treated strictly as untrusted; never auto-confirmed; embedded text is treated strictly as data.
+- **Evidence-Grounded STEM Tutor (`app/services/tutor.py`):** Answers questions strictly by calling 6 deterministic graph tools (`get_neighbors`, `shortest_path`, `component_state`, `energy_flow`, `run_verified_simulation`, `get_learning_feedback`), citing exact node/edge IDs, and abstaining with `"Not established by this diagram."` for out-of-scope or adversarial prompts.
 
 ---
 
@@ -57,60 +61,43 @@ SenseGraph turns supported STEM diagrams into an editable, verifiable semantic g
 ```text
 SenseGraph/
   app/
-    main.py                 # FastAPI app, REST API, same-origin static serving
+    main.py                 # FastAPI app, REST API, rate limiting, same-origin static UI
     models.py               # Pydantic v2 models matching contracts/diagram.schema.json
-    settings.py             # Environment settings (server-only credentials)
+    settings.py             # Environment settings & feature flags (server-only secrets)
     domains/
       physics.py            # Qualitative single-loop series circuit engine
       biology.py            # Directed food-web relationship engine
+      flowchart.py          # Safe restricted CS flowchart interpreter (no eval/exec)
+      mathematics.py        # Finite XY plot analysis & CSV importer
+      chemistry.py          # Pure-Python beginner SMILES parser & valence validator
     services/
       validators.py         # Structural (valid) vs domain (simulation_ready) checks
       fixtures.py           # Bundled pre-annotated demo loader (deep-copied)
       description.py        # Deterministic plain-language diagram & node summaries
-      ai_vision.py          # VisionProvider abstraction, Pillow security checks, GeminiVisionProvider
-      learning.py           # Deterministic Guided Learning Lab engine
+      ai_vision.py          # VisionProvider abstraction, Pillow security, GeminiVisionProvider
+      learning.py           # Deterministic Guided Learning Lab across all 5 domains
+      tutor.py              # Evidence-Grounded STEM Tutor (6 tools + abstention guard)
     static/
-      index.html            # Semantic HTML5 UI (Welcome, Review, Explorer, Lab, Guided Tour)
-      styles.css            # High-contrast responsive CSS with [hidden] & reduced-motion rules
-      app.js                # Vanilla JS client, focus management, SVG graph, optional TTS
+      index.html            # Semantic HTML5 UI (Welcome, Review, Explorer, Lab, Tour, Tutor)
+      styles.css            # High-contrast responsive CSS ([hidden], focus, reduced-motion)
+      app.js                # Vanilla JS client, focus management, SVG graphs, optional TTS/sonification
   contracts/
     diagram.schema.json     # Authoritative JSON Schema (Draft 2020-12)
-  fixtures/
-    physics_series.json     # Curated Physics demo fixture
-    biology_food_web.json   # Curated Biology demo fixture
-    images/                 # Original sample PNGs for preview & upload testing
-  tests/
-    test_models.py          # JSON Schema + Pydantic + validator tests (10)
-    test_physics.py         # Physics engine & topology invariant tests (10)
-    test_biology.py         # Biology graph, path, and removal tests (7)
-    test_api.py             # REST endpoints, static assets, Phase 2 & 6 UI checks (8)
-    test_ai_vision.py       # Upload security, mocked Gemini, integrity & review tests (13)
-    test_learning.py        # Guided Learning Lab scoring & API tests (6)
-  docs/
-    PRODUCT_SPEC.md
-    TECHNICAL_SPEC.md
-    ACCESSIBILITY_AND_TESTS.md
-    DECISIONS.md
-    EXTRACTION_EVALUATION.md
-    ROADMAP_AND_SUBMISSION.md
-  submission/               # STEM2Connect Devpost & demo assets
+  evaluation/
+    dataset_manifest.json   # Curated original-asset benchmark manifest
+    benchmark.py            # Repeatable precision/recall harness (dry-run & live modes)
+  fixtures/                 # 5 curated pre-annotated JSON fixtures + 2 original PNGs
+  tests/                    # 82 automated unit & integration tests across 9 test files
+  docs/                     # Product/technical specs, decisions, user-study protocol, evidence matrix
+  submission/               # STEM2Connect Devpost copy, demo script, shot list, checklist
+  .github/workflows/ci.yml  # GitHub Actions CI (Python 3.11 & 3.13: ruff + pytest + dry-run)
 ```
-
-### REST API Endpoints
-- `GET /api/health` — Backend health, supported domains, and `ai_configured` boolean (never exposes secrets)
-- `GET /api/examples` & `GET /api/examples/{example_id}` — Pre-annotated fixtures (`Pre-annotated demo — no AI used`)
-- `POST /api/analyze` — Multipart image upload (`file`, `domain`, `consent`) → Pillow security validation → Gemini Vision (`unreviewed`)
-- `POST /api/validate` — Separates structural validity (`valid`) from domain readiness (`simulation_ready`)
-- `POST /api/confirm` — Validates and confirms an unreviewed diagram (`review_status="confirmed"`)
-- `POST /api/state` — Explicit backend-calculated circuit/food-web state
-- `POST /api/simulate` — Stateless deterministic `toggle_switch` and `remove_organism` actions
-- `POST /api/learning/challenges` & `POST /api/learning/evaluate` — Guided Learning Lab challenge generation and grading
 
 ---
 
 ## 5. Setup & Running Locally (Windows PowerShell)
 
-### Mode A — Pre-Annotated Demo Mode (No API Key Required)
+### Mode A — Pre-Annotated Demo & Structured-Input Mode (No API Key Required)
 
 ```powershell
 cd D:\AI-tools\Project\SenseGraph
@@ -121,55 +108,60 @@ copy .env.example .env
 python -m uvicorn app.main:app --reload
 ```
 
-Open **`http://127.0.0.1:8000`** in your browser (`http://127.0.0.1:8000/docs` for OpenAPI).
+Open **`http://127.0.0.1:8000`** in your browser (`http://127.0.0.1:8000/docs` for OpenAPI, `http://127.0.0.1:8000/api/health` for health).
 
 ### Mode B — Live Gemini Vision Mode (Optional, Local `.env`)
 
-1. Edit your local `.env` (already excluded from git via `.gitignore`):
+1. Edit your local `.env` (excluded from git via `.gitignore`):
    ```dotenv
    AI_PROVIDER=gemini
    GEMINI_API_KEY=your_gemini_api_key_here
    GEMINI_MODEL=gemini-2.5-flash
    AI_TIMEOUT_SECONDS=30
    MAX_UPLOAD_MB=5
+   ENABLE_EXPERIMENTAL_DOMAINS=true
+   ANALYZE_RATE_LIMIT_PER_MIN=20
    ```
 2. Restart `uvicorn`. The header badge updates to **Gemini Vision configured**.
 3. Upload a PNG, JPEG, or WEBP diagram (<= 5 MB, <= 4096×4096 / 16 MP), check the explicit external-provider consent box, review and validate the AI proposal, then confirm to open the Explorer.
-4. **Privacy boundary:** Uploaded images are processed in memory only, never persisted on disk, and never logged. Never upload personal or sensitive images.
+4. **Privacy boundary:** Uploaded images are processed in memory only, never persisted on disk, and never logged. Never upload personal or sensitive content.
 
 ---
 
-## 6. Accessibility Design
-
-- **Semantic HTML5:** `<html lang="en">`, `<header>`, `<main id="main-content" tabindex="-1">`, `<footer>`, hierarchical `<h1>`–`<h4>`, `<label>`-bound form fields, `<fieldset>`/`<legend>` for Learning Lab predictions, and native `<button>` controls everywhere.
-- **Keyboard-only operation:** Skip-to-content link visible on focus, high-contrast `:focus-visible` outlines, `[hidden] { display: none !important; }` to keep hidden panels out of tab order, and deliberate focus restoration after component selection, neighbor jumps, simulations, resets, error dismissal, and AI confirmation.
-- **Two equivalent explorers:** The responsive SVG semantic graph is marked `aria-hidden="true"` and `focusable="false"` so it visually assists sighted users without introducing duplicate tab stops, while keyboard/screen-reader users have 100% equivalent access via the structured Component List, Relationships, Complete Text List, and text-first **Guided Tour**.
-- **Optional user-initiated voice:** Browser `speechSynthesis` with Pause/Resume, Stop, and Speech Rate (`0.8x`–`1.5x`) is off by default, never autoplays, and is never required.
-
----
-
-## 7. Testing Results & Honest Limitations
+## 6. Verification Results & Honest Limitations
 
 ### Automated Verification
-Run locally:
 ```powershell
+python -m ruff check app tests evaluation
 python -m pytest -v
-python -m ruff check app tests
+python -m evaluation.benchmark --mode dry-run
 ```
-- **Observed result:** **54 passed** (`0 failed`, `0 warnings`), **Ruff: All checks passed**.
-- Automated AI tests use mocked `VisionProvider` instances and never call the live Gemini API.
+- **Observed results:**
+  - **Pytest:** **82 passed** (`0 failed`, `0 warnings`) across 9 test modules (`test_models`, `test_physics`, `test_biology`, `test_api`, `test_ai_vision`, `test_learning`, `test_flowchart`, `test_mathematics`, `test_chemistry`, `test_tutor`, `test_evaluation_and_prod`).
+  - **Ruff:** **All checks passed** (including `SIM102` fix in `app/domains/flowchart.py`).
+  - **Benchmark dry-run:** All 6 manifest cases validated (`status: "not_tested"` for live AI).
+  - **Grounded Tutor scripted test set (`tests/test_tutor.py`):** 7/7 in-scope questions answered with verified citations; 6/6 out-of-scope/adversarial questions abstained with `"Not established by this diagram."`.
 
-### Honest Limitations & What Has Not Been Tested Yet
-- **Live Gemini Vision smoke test:** Not yet executed in the development environment because no local `GEMINI_API_KEY` was configured. All live extraction rows in [docs/EXTRACTION_EVALUATION.md](docs/EXTRACTION_EVALUATION.md) are candidly marked `not tested`.
-- **Live browser & screen-reader audit:** Live Chrome automation, NVDA, JAWS, and VoiceOver sessions, and user studies with blind students have **not** been conducted yet. No WCAG compliance certification or demonstrated educational efficacy is claimed.
-- **Scientific scope:** Physics covers only qualitative single-loop series circuits (1 battery, 1 switch, 1–2 bulbs). Biology covers only directed feeding relationship changes (no population dynamics or extinction forecasts).
-- **Roadmap (post-hackathon):** Computer Science Flowchart Explorer (P2), live multi-image Gemini extraction benchmark, formal NVDA/VoiceOver and blind-learner user testing, and optional cloud hosting.
+### Honest Limitations & What Has Not Been Verified Yet
+- **Live Gemini Vision smoke test:** **Not executed** in this environment because no local `GEMINI_API_KEY` was configured (`AI_PROVIDER=none`). Automated AI tests use mocked `VisionProvider` instances only. See [docs/EXTRACTION_EVALUATION.md](docs/EXTRACTION_EVALUATION.md).
+- **Live browser & screen-reader audit:** Live Chrome browser automation (DevTools port unavailable), NVDA, JAWS, VoiceOver sessions, and blind-learner user studies have **not** been executed yet. No WCAG compliance certification or demonstrated learning outcome is claimed. See [docs/EVIDENCE_MATRIX.md](docs/EVIDENCE_MATRIX.md) and [docs/USER_STUDY_PROTOCOL.md](docs/USER_STUDY_PROTOCOL.md).
+- **Structured-data domains:** Mathematics (`math_plot`) and Chemistry (`chemistry_molecule`) use validated CSV and SMILES inputs rather than image-to-graph recognition.
 
 ---
 
-## 8. Attribution & AI Coding Disclosure
+## 7. Key Documentation & Submission Assets
 
-- **AI coding assistance:** Built with AI coding assistance (Google Antigravity / Gemini models) following the specifications in `docs/` and `AGENTS.md`.
+- Evidence matrix (`implemented` vs `tested` vs `verified with users` vs `planned`): [docs/EVIDENCE_MATRIX.md](docs/EVIDENCE_MATRIX.md)
+- Release notes: [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md)
+- Architecture decisions (`D1`–`D20`): [docs/DECISIONS.md](docs/DECISIONS.md)
+- Ethical user-study protocol: [docs/USER_STUDY_PROTOCOL.md](docs/USER_STUDY_PROTOCOL.md)
+- Extraction evaluation & manual QA checklist: [docs/EXTRACTION_EVALUATION.md](docs/EXTRACTION_EVALUATION.md)
+- Submission pack: [submission/DEVPOST_DESCRIPTION.md](submission/DEVPOST_DESCRIPTION.md), [submission/DEMO_SCRIPT_EN.md](submission/DEMO_SCRIPT_EN.md), [submission/DEMO_SHOT_LIST.md](submission/DEMO_SHOT_LIST.md), [submission/JUDGING_ALIGNMENT.md](submission/JUDGING_ALIGNMENT.md), [submission/SUBMISSION_CHECKLIST_VI.md](submission/SUBMISSION_CHECKLIST_VI.md)
+
+---
+
+## 8. Attribution & AI Coding Assistance Disclosure
+
+- **AI coding assistance:** Built with AI coding assistance (Google Antigravity / Gemini models) following the project specifications in `docs/` and `AGENTS.md`.
 - **External AI SDK:** Official Google `google-genai` Python SDK (`GeminiVisionProvider`).
-- **Sample assets:** Bundled fixtures (`fixtures/*.json`) and sample images (`fixtures/images/*.png`) are original handoff assets created for this project.
-- **Secrets:** `.env` and credentials are excluded via `.gitignore` and verified absent from git history.
+- **Original assets:** Bundled fixtures (`fixtures/*.json`) and sample images (`fixtures/images/*.png`) are original project assets. `.env` and credentials are excluded via `.gitignore` and verified absent from git.

@@ -372,9 +372,8 @@ def validate_flowchart(diagram: DiagramDocument) -> FlowchartValidationResult:
                     f"Decision node '{node.id}' must have exactly 1 'branch_true' edge "
                     "and 1 'branch_false' edge."
                 )
-        elif node.kind == "end":
-            if out_edges:
-                errors.append(f"End node '{node.id}' cannot have outgoing edges.")
+        elif node.kind == "end" and out_edges:
+            errors.append(f"End node '{node.id}' cannot have outgoing edges.")
 
         # Validate node-specific safe instruction attributes.
         attrs = node.attributes or {}

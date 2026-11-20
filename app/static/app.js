@@ -221,6 +221,9 @@
     mathCompareBtn: document.getElementById("math-compare-btn"),
     mathIntervalResult: document.getElementById("math-interval-result"),
     mathAnalysisList: document.getElementById("math-analysis-list"),
+    mathCsvTitle: document.getElementById("math-csv-title"),
+    mathCsvInput: document.getElementById("math-csv-input"),
+    mathCsvImportBtn: document.getElementById("math-csv-import-btn"),
     chemControlsPanel: document.getElementById("chem-controls-panel"),
     chemSmilesInput: document.getElementById("chem-smiles-input"),
     chemParseBtn: document.getElementById("chem-parse-btn"),
@@ -378,14 +381,24 @@
 
   function renderHealth() {
     if (!state.health) return;
+    const supported = new Set(state.health.supported_domains || []);
+    dom.switchCsBtn.hidden = !supported.has("cs_flowchart");
+    dom.switchMathBtn.hidden = !supported.has("math_plot");
+    dom.switchChemBtn.hidden = !supported.has("chemistry_molecule");
+
+    for (const opt of Array.from(dom.analyzeDomainSelect.options)) {
+      opt.hidden = !supported.has(opt.value);
+      opt.disabled = !supported.has(opt.value);
+    }
+
     if (state.health.ai_configured) {
       dom.healthBadge.textContent = "Backend ready · Gemini Vision configured";
       dom.aiStatusText.textContent =
-        "Gemini Vision is configured on the server. Upload a PNG, JPEG, or WEBP diagram (max 5 MB), provide consent, and review the AI output before running experiments.";
+        "Gemini Vision is configured on the server. Upload a PNG, JPEG, or WEBP diagram (max 5 MB), provide consent, and review the AI output before running experiments. (Mathematics and Chemistry use structured CSV/SMILES input workflows.)";
     } else {
       dom.healthBadge.textContent = "Backend ready · Demo mode (no AI key)";
       dom.aiStatusText.textContent =
-        "No Gemini API key is currently configured on the server. Pre-annotated examples above work without a key. To enable live image analysis, configure AI_PROVIDER=gemini and GEMINI_API_KEY in .env.";
+        "No Gemini API key is currently configured on the server. Pre-annotated examples above work without a key. To enable live image analysis for Physics, Biology, or CS Flowcharts, configure AI_PROVIDER=gemini and GEMINI_API_KEY in .env.";
     }
   }
 
@@ -1526,13 +1539,46 @@
       );
     }
 
-    return (
-      `Overview of ${diagram.title} (${prov}). ` +
-      `This directed food web has ${diagram.nodes.length} organisms and ` +
-      `${diagram.edges.length} feeding relationships. ` +
-      "Arrows point from food or prey to consumer or predator. " +
-      `${diagram.summary}`
-    );
+    if (diagram.domain === "biology_food_web") {
+      return (
+        `Overview of ${diagram.title} (${prov}). ` +
+        `This directed food web has ${diagram.nodes.length} organisms and ` +
+        `${diagram.edges.length} feeding relationships. ` +
+        "Arrows point from food or prey to consumer or predator. " +
+        `${diagram.summary}`
+      );
+    }
+
+    if (diagram.domain === "cs_flowchart") {
+      return (
+        `Overview of ${diagram.title} (${prov}). ` +
+        `This restricted flowchart has ${diagram.nodes.length} blocks and ` +
+        `${diagram.edges.length} directed flow or True/False branches. ` +
+        `${diagram.summary}`
+      );
+    }
+
+    if (diagram.domain === "math_plot") {
+      const dm = diagram.domain_model;
+      return (
+        `Overview of ${diagram.title} (${prov}). ` +
+        `This XY line plot shows ${dm.y_label} (${dm.y_unit || "unitless"}) versus ` +
+        `${dm.x_label} (${dm.x_unit || "unitless"}) across ${dm.points.length} data points. ` +
+        `${diagram.summary}`
+      );
+    }
+
+    if (diagram.domain === "chemistry_molecule") {
+      const dm = diagram.domain_model;
+      return (
+        `Overview of ${diagram.title} (${prov}). ` +
+        `Formula ${dm.formula}, SMILES ${dm.smiles}, with ${diagram.nodes.length} atoms and ` +
+        `${diagram.edges.length} covalent bonds. ` +
+        `${diagram.summary}`
+      );
+    }
+
+    return `Overview of ${diagram.title} (${prov}). ${diagram.summary}`;
   }
 
   function buildTourComponentText(diagram, node) {
@@ -1566,6 +1612,39 @@
         `${node.label} has ${neighbors.length} direct wire connection${neighbors.length === 1 ? "" : "s"}: ` +
         `connected to ${neighbors.join(" and ")}.`
       );
+    }
+
+    if (diagram.domain === "chemistry_molecule") {
+      const bonds = [];
+      for (const edge of diagram.edges) {
+        const bType = edge.relation.replace("_", " ");
+        if (edge.source === node.id && nodeMap.has(edge.target)) {
+          bonds.push(`${nodeMap.get(edge.target).label} (${bType})`);
+        } else if (edge.target === node.id && nodeMap.has(edge.source)) {
+          bonds.push(`${nodeMap.get(edge.source).label} (${bType})`);
+        }
+      }
+      return bonds.length > 0
+        ? `Covalent bonds for ${node.label}: bonded to ${bonds.join(", ")}.`
+        : `${node.label} has no covalent bonds in this diagram.`;
+    }
+
+    if (diagram.domain === "cs_flowchart") {
+      const out = diagram.edges
+        .filter((e) => e.source === node.id && nodeMap.has(e.target))
+        .map((e) => `${e.relation} -> ${nodeMap.get(e.target).label}`);
+      return out.length > 0
+        ? `Outgoing flow from ${node.label}: ${out.join("; ")}.`
+        : `${node.label} is a terminal block with no outgoing flow.`;
+    }
+
+    if (diagram.domain === "math_plot") {
+      const pts = diagram.domain_model.points || [];
+      const idx = pts.findIndex((p) => p.id === node.id);
+      if (idx === -1) return `Data point ${node.label}.`;
+      const prev = idx > 0 ? pts[idx - 1].label : "none";
+      const next = idx < pts.length - 1 ? pts[idx + 1].label : "none";
+      return `Adjacent points for ${node.label}: previous point is ${prev}; next point is ${next}.`;
     }
 
     const incoming = diagram.edges
@@ -1725,6 +1804,72 @@
     return positions;
   }
 
+  function computeMathPlotPositions(diagram) {
+    const pts = (diagram.domain_model && diagram.domain_model.points) || [];
+    const positions = new Map();
+    if (pts.length === 0) return positions;
+    const xs = pts.map((p) => p.x);
+    const ys = pts.map((p) => p.y);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
+    const spanX = maxX - minX || 1;
+    const spanY = maxY - minY || 1;
+    for (const p of pts) {
+      const x = 85 + ((p.x - minX) / spanX) * 470;
+      const y = 240 - ((p.y - minY) / spanY) * 180;
+      positions.set(p.id, { x, y });
+    }
+    return positions;
+  }
+
+  function computeFlowchartPositions(diagram) {
+    // Balanced 2-row grid layout so cyclic loops never overlap nodes.
+    const positions = new Map();
+    const nodes = diagram.nodes;
+    const cols = Math.ceil(nodes.length / 2);
+    nodes.forEach((n, idx) => {
+      const row = idx < cols ? 0 : 1;
+      const col = row === 0 ? idx : idx - cols;
+      const rowLen = row === 0 ? cols : nodes.length - cols;
+      const x =
+        rowLen === 1
+          ? 320
+          : 90 + (col * 460) / (rowLen - 1);
+      const y = row === 0 ? 85 : 215;
+      positions.set(n.id, { x, y });
+    });
+    return positions;
+  }
+
+  function computeChemistryPositions(diagram) {
+    const positions = new Map();
+    const nodes = diagram.nodes;
+    if (nodes.length === 0) return positions;
+    if (nodes.length === 1) {
+      positions.set(nodes[0].id, { x: 320, y: 150 });
+      return positions;
+    }
+    // Place highest-degree atom near center and distribute others around a clean ring.
+    const degree = new Map(nodes.map((n) => [n.id, 0]));
+    for (const e of diagram.edges) {
+      if (degree.has(e.source)) degree.set(e.source, degree.get(e.source) + 1);
+      if (degree.has(e.target)) degree.set(e.target, degree.get(e.target) + 1);
+    }
+    const sorted = [...nodes].sort((a, b) => degree.get(b.id) - degree.get(a.id));
+    positions.set(sorted[0].id, { x: 320, y: 150 });
+    const rest = sorted.slice(1);
+    rest.forEach((n, idx) => {
+      const angle = (2 * Math.PI * idx) / rest.length - Math.PI / 2;
+      positions.set(n.id, {
+        x: 320 + Math.cos(angle) * 185,
+        y: 150 + Math.sin(angle) * 100,
+      });
+    });
+    return positions;
+  }
+
   function updateSvgComparisonBadge(diagram) {
     if (!state.baselineDiagram) {
       dom.svgStateComparison.textContent = "Baseline state";
@@ -1742,6 +1887,25 @@
       } else {
         dom.svgStateComparison.textContent = `Experiment changed · Baseline: ${baseSw} -> Current: ${curSw} (Bulb ${bulbsOn ? "ON" : "OFF"})`;
       }
+      return;
+    }
+
+    if (diagram.domain === "cs_flowchart") {
+      dom.svgStateComparison.textContent = state.flowchartTrace
+        ? `Trace ${state.flowchartTrace.status} · Step ${state.flowchartStepIdx + 1}/${state.flowchartTrace.steps.length}`
+        : `Baseline flowchart · ${diagram.nodes.length} blocks, ${diagram.edges.length} links`;
+      return;
+    }
+
+    if (diagram.domain === "math_plot") {
+      const dm = diagram.domain_model;
+      dom.svgStateComparison.textContent = `${dm.points.length} data points · ${dm.y_label} vs ${dm.x_label}`;
+      return;
+    }
+
+    if (diagram.domain === "chemistry_molecule") {
+      const dm = diagram.domain_model;
+      dom.svgStateComparison.textContent = `${dm.formula} (${dm.smiles}) · ${diagram.nodes.length} atoms, ${diagram.edges.length} bonds`;
       return;
     }
 
@@ -1794,7 +1958,26 @@
     const positions =
       diagram.domain === "physics_circuit"
         ? computePhysicsPositions(diagram)
-        : computeBiologyLayers(diagram);
+        : diagram.domain === "math_plot"
+          ? computeMathPlotPositions(diagram)
+          : diagram.domain === "cs_flowchart"
+            ? computeFlowchartPositions(diagram)
+            : diagram.domain === "chemistry_molecule"
+              ? computeChemistryPositions(diagram)
+              : computeBiologyLayers(diagram);
+
+    // Draw clean XY axis lines for math_plot
+    if (diagram.domain === "math_plot") {
+      svg.appendChild(
+        createSvgEl("line", { x1: 65, y1: 255, x2: 585, y2: 255, stroke: "#94a3b8", "stroke-width": 2 })
+      );
+      svg.appendChild(
+        createSvgEl("line", { x1: 65, y1: 45, x2: 65, y2: 255, stroke: "#94a3b8", "stroke-width": 2 })
+      );
+      const xAxisTxt = createSvgEl("text", { x: 325, y: 282, class: "svg-node-sub" });
+      xAxisTxt.textContent = `${diagram.domain_model.x_label}${diagram.domain_model.x_unit ? ` (${diagram.domain_model.x_unit})` : ""}`;
+      svg.appendChild(xAxisTxt);
+    }
 
     const connectedToSelected = new Set();
     for (const e of diagram.edges) {
@@ -1880,8 +2063,16 @@
         } else {
           subLabel = "BATTERY (+ / -)";
         }
-      } else {
+      } else if (diagram.domain === "biology_food_web") {
         subLabel = "ORGANISM";
+      } else if (diagram.domain === "cs_flowchart") {
+        subLabel = node.kind.toUpperCase();
+      } else if (diagram.domain === "math_plot") {
+        const attrs = node.attributes || {};
+        subLabel = `(${attrs.x}, ${attrs.y})`;
+      } else if (diagram.domain === "chemistry_molecule") {
+        const el = (node.attributes && node.attributes.element) || "ATOM";
+        subLabel = `ELEMENT · ${el}`;
       }
       g.setAttribute("class", classes.join(" "));
 
@@ -2311,6 +2502,32 @@
         buildNeighborList(bonded, "No covalent bonds connected to this atom.")
       );
       dom.selectedRelationships.appendChild(bGroup);
+    } else if (diagram.domain === "math_plot") {
+      const pts = (diagram.domain_model && diagram.domain_model.points) || [];
+      const idx = pts.findIndex((p) => p.id === node.id);
+      const adjacent = [];
+      if (idx > 0 && nodeMap.has(pts[idx - 1].id)) {
+        const prev = pts[idx - 1];
+        adjacent.push({
+          neighbor: nodeMap.get(prev.id),
+          description: `Previous point: ${prev.label} (Δx = ${pts[idx].x - prev.x}, Δy = ${pts[idx].y - prev.y}).`,
+        });
+      }
+      if (idx >= 0 && idx < pts.length - 1 && nodeMap.has(pts[idx + 1].id)) {
+        const nxt = pts[idx + 1];
+        adjacent.push({
+          neighbor: nodeMap.get(nxt.id),
+          description: `Next point: ${nxt.label} (Δx = ${nxt.x - pts[idx].x}, Δy = ${nxt.y - pts[idx].y}).`,
+        });
+      }
+      const mGroup = document.createElement("div");
+      mGroup.className = "relation-group";
+      const mTitle = document.createElement("p");
+      mTitle.className = "relation-group-title";
+      mTitle.textContent = "Adjacent series points";
+      mGroup.appendChild(mTitle);
+      mGroup.appendChild(buildNeighborList(adjacent, "No adjacent points."));
+      dom.selectedRelationships.appendChild(mGroup);
     }
   }
 
@@ -2496,15 +2713,29 @@
 
         if (diagram.domain === "biology_food_web") {
           li.textContent = `${srcLabel} provides energy to ${tgtLabel} (${edge.description})`;
-        } else {
+        } else if (diagram.domain === "physics_circuit") {
           li.textContent = `${srcLabel} connected by wire to ${tgtLabel} (${edge.description})`;
+        } else if (diagram.domain === "cs_flowchart") {
+          const tag =
+            edge.relation === "branch_true"
+              ? "TRUE branch to"
+              : edge.relation === "branch_false"
+                ? "FALSE branch to"
+                : "flows to";
+          li.textContent = `${srcLabel} ${tag} ${tgtLabel} (${edge.description})`;
+        } else if (diagram.domain === "chemistry_molecule") {
+          li.textContent = `${srcLabel} — ${tgtLabel} [${edge.relation.replace("_", " ")}] (${edge.description})`;
+        } else {
+          li.textContent = `${srcLabel} -> ${tgtLabel} (${edge.description})`;
         }
         dom.allRelationsList.appendChild(li);
       }
     }
 
     const filename = diagram.source && diagram.source.filename;
-    if (diagram.source && diagram.source.mode === "fixture" && filename) {
+    const isRasterImage =
+      typeof filename === "string" && /\.(png|jpe?g|webp)$/i.test(filename);
+    if (diagram.source && diagram.source.mode === "fixture" && isRasterImage) {
       dom.diagramPreviewImg.src = `/fixtures/images/${encodeURIComponent(filename)}`;
       dom.diagramPreviewImg.alt = `${diagram.title} schematic diagram. Full structure is provided in the text overview and component list.`;
       dom.diagramPreviewCaption.textContent = `Reference image (${filename}) for ${diagram.title}. Visual preview shows the original baseline diagram.`;
@@ -2575,6 +2806,11 @@
     if (!node) return;
 
     state.selectedNodeId = node.id;
+    if (state.currentDiagram.domain === "math_plot") {
+      const pts = state.currentDiagram.domain_model.points || [];
+      const ptIdx = pts.findIndex((p) => p.id === node.id);
+      if (ptIdx >= 0) state.mathPointIdx = ptIdx;
+    }
     renderComponentList(
       state.currentDiagram,
       focusMode === "keep_list_focus" ? node.id : null
@@ -2946,6 +3182,8 @@
       state.flowchartInputValues = {};
       state.mathAnalysis = null;
       state.mathPointIdx = 0;
+      state.tutorHistory = [];
+      renderTutorHistory();
       if (diagram.domain === "math_plot") {
         state.mathAnalysis = await apiRequest("/api/math/analyze", {
           method: "POST",
@@ -3112,6 +3350,46 @@
     dom.mathPrevPtBtn.addEventListener("click", () => stepMathPoint(-1));
     dom.mathNextPtBtn.addEventListener("click", () => stepMathPoint(1));
     dom.mathCompareBtn.addEventListener("click", runMathIntervalCompare);
+    dom.mathCsvImportBtn.addEventListener("click", async () => {
+      clearError();
+      const csvText = dom.mathCsvInput.value.trim();
+      const title = dom.mathCsvTitle.value.trim() || "Imported XY Data Plot";
+      if (!csvText) {
+        showError("Paste at least two x,y CSV rows before importing.");
+        return;
+      }
+      try {
+        const doc = await apiRequest("/api/math/import-csv", {
+          method: "POST",
+          body: JSON.stringify({ csv_text: csvText, title }),
+        });
+        const [backendState, analysis] = await Promise.all([
+          fetchBackendState(doc),
+          apiRequest("/api/math/analyze", {
+            method: "POST",
+            body: JSON.stringify({ diagram: doc }),
+          }),
+        ]);
+        state.baselineDiagram = deepClone(doc);
+        state.currentDiagram = deepClone(doc);
+        state.backendState = backendState;
+        state.mathAnalysis = analysis;
+        state.mathPointIdx = 0;
+        state.selectedNodeId = doc.nodes[0].id;
+        state.tutorHistory = [];
+        renderTutorHistory();
+        state.lastSimulation = null;
+        state.explorerMode = "explore";
+        resetLabState();
+        await loadLabChallengesForBaseline();
+        renderExplorer();
+        dom.diagramTitle.focus();
+        announce(`Imported CSV plot ${doc.title}. ${doc.summary}`);
+      } catch (err) {
+        showError(err.message);
+        announce(`CSV import error: ${err.message}`);
+      }
+    });
     dom.mathSonifyPtBtn.addEventListener("click", () => {
       if (!state.currentDiagram || state.currentDiagram.domain !== "math_plot") return;
       const pts = state.currentDiagram.domain_model.points;
