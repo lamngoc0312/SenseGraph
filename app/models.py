@@ -8,7 +8,12 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 ID_PATTERN = r"^[A-Za-z][A-Za-z0-9_-]*$"
 
-DomainType = Literal["physics_circuit", "biology_food_web", "cs_flowchart"]
+DomainType = Literal[
+    "physics_circuit",
+    "biology_food_web",
+    "cs_flowchart",
+    "math_plot",
+]
 SourceMode = Literal["fixture", "ai"]
 ReviewStatus = Literal["unreviewed", "confirmed"]
 NodeKind = Literal[
@@ -21,8 +26,16 @@ NodeKind = Literal[
     "input",
     "assignment",
     "decision",
+    "data_point",
 ]
-EdgeRelation = Literal["wire", "energy_to", "flow", "branch_true", "branch_false"]
+EdgeRelation = Literal[
+    "wire",
+    "energy_to",
+    "flow",
+    "branch_true",
+    "branch_false",
+    "series_next",
+]
 SwitchState = Literal["open", "closed"]
 
 FIXTURE_SOURCE_LABEL = "Pre-annotated demo — no AI used"
@@ -111,8 +124,34 @@ class FlowchartModel(BaseModel):
     max_steps: int = Field(default=100, ge=1, le=200)
 
 
+class MathPlotPoint(BaseModel):
+    """Single finite (x, y) data point with explicit exact vs estimated flag."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(..., pattern=ID_PATTERN)
+    x: float
+    y: float
+    label: str = Field(..., min_length=1)
+    exact: bool = True
+
+
+class MathPlotModel(BaseModel):
+    """Mathematics domain payload for explicit XY line plots and sample functions."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["math_plot"]
+    x_label: str = Field(..., min_length=1)
+    x_unit: str = ""
+    y_label: str = Field(..., min_length=1)
+    y_unit: str = ""
+    function_label: str | None = None
+    points: list[MathPlotPoint] = Field(..., min_length=2)
+
+
 DomainModel = Annotated[
-    SeriesCircuitModel | FoodWebModel | FlowchartModel,
+    SeriesCircuitModel | FoodWebModel | FlowchartModel | MathPlotModel,
     Field(discriminator="kind"),
 ]
 
@@ -147,6 +186,10 @@ class DiagramDocument(BaseModel):
         if self.domain == "cs_flowchart" and self.domain_model.kind != "flowchart":
             raise ValueError(
                 "domain_model.kind must be 'flowchart' when domain is 'cs_flowchart'."
+            )
+        if self.domain == "math_plot" and self.domain_model.kind != "math_plot":
+            raise ValueError(
+                "domain_model.kind must be 'math_plot' when domain is 'math_plot'."
             )
         return self
 
@@ -219,6 +262,79 @@ class DiagramStateResponse(BaseModel):
     entry_node: str | None = None
     flowchart_inputs: dict[str, int | bool] = Field(default_factory=dict)
     max_steps: int | None = None
+    point_count: int | None = None
+    x_label: str | None = None
+    y_label: str | None = None
+
+
+class MathIntercept(BaseModel):
+    axis: Literal["x", "y"]
+    x: float
+    y: float
+    exact: bool
+    note: str
+
+
+class MathMonotonicInterval(BaseModel):
+    start_id: str
+    end_id: str
+    start_x: float
+    end_x: float
+    trend: Literal["increasing", "decreasing", "constant"]
+    delta_x: float
+    delta_y: float
+    avg_rate_of_change: float
+
+
+class MathIntervalSummary(BaseModel):
+    start_index: int
+    end_index: int
+    start_x: float
+    end_x: float
+    start_y: float
+    end_y: float
+    delta_x: float
+    delta_y: float
+    avg_rate_of_change: float
+    trend: Literal["increasing", "decreasing", "constant", "mixed"]
+    contains_estimated_points: bool
+    announcement: str
+
+
+class MathAnalysisRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    diagram: DiagramDocument
+    start_index: int | None = Field(default=None, ge=0)
+    end_index: int | None = Field(default=None, ge=0)
+
+
+class MathAnalysisResponse(BaseModel):
+    point_count: int
+    x_label: str
+    x_unit: str
+    y_label: str
+    y_unit: str
+    global_min: MathPlotPoint
+    global_max: MathPlotPoint
+    local_maxima: list[MathPlotPoint] = Field(default_factory=list)
+    local_minima: list[MathPlotPoint] = Field(default_factory=list)
+    monotonic_intervals: list[MathMonotonicInterval] = Field(default_factory=list)
+    x_intercepts: list[MathIntercept] = Field(default_factory=list)
+    y_intercept: MathIntercept | None = None
+    interval_summary: MathIntervalSummary | None = None
+    summary: str
+
+
+class MathCsvImportRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    csv_text: str = Field(..., min_length=3)
+    title: str = Field(default="Imported XY Data Plot", min_length=1)
+    x_label: str = Field(default="x", min_length=1)
+    x_unit: str = ""
+    y_label: str = Field(default="y", min_length=1)
+    y_unit: str = ""
 
 
 class FlowchartTraceStep(BaseModel):

@@ -17,6 +17,7 @@ SUPPORTED_DOMAINS: tuple[str, ...] = (
     "physics_circuit",
     "biology_food_web",
     "cs_flowchart",
+    "math_plot",
 )
 
 

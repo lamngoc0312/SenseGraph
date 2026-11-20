@@ -13,6 +13,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.domains import DomainSimulationError
 from app.domains.biology import remove_organism
 from app.domains.flowchart import execute_flowchart
+from app.domains.mathematics import analyze_math_plot, parse_csv_to_math_plot
 from app.domains.physics import evaluate_circuit_state, toggle_switch
 from app.models import (
     DiagramDocument,
@@ -27,6 +28,10 @@ from app.models import (
     LearningChallengeSetResponse,
     LearningEvaluateRequest,
     LearningEvaluationResponse,
+    MathAnalysisRequest,
+    MathAnalysisResponse,
+    MathCsvImportRequest,
+    MathPlotModel,
     SeriesCircuitModel,
     SimulationRequest,
     SimulationResponse,
@@ -236,12 +241,20 @@ def create_app(
                 organism_count=len(diagram.nodes),
                 relationship_count=len(diagram.edges),
             )
-        assert isinstance(diagram.domain_model, FlowchartModel)
+        if diagram.domain == "cs_flowchart":
+            assert isinstance(diagram.domain_model, FlowchartModel)
+            return DiagramStateResponse(
+                domain="cs_flowchart",
+                entry_node=diagram.domain_model.entry_node,
+                flowchart_inputs=dict(diagram.domain_model.inputs),
+                max_steps=diagram.domain_model.max_steps,
+            )
+        assert isinstance(diagram.domain_model, MathPlotModel)
         return DiagramStateResponse(
-            domain="cs_flowchart",
-            entry_node=diagram.domain_model.entry_node,
-            flowchart_inputs=dict(diagram.domain_model.inputs),
-            max_steps=diagram.domain_model.max_steps,
+            domain="math_plot",
+            point_count=len(diagram.domain_model.points),
+            x_label=diagram.domain_model.x_label,
+            y_label=diagram.domain_model.y_label,
         )
 
     @application.post("/api/flowchart/trace", response_model=FlowchartTraceResponse)
@@ -250,6 +263,25 @@ def create_app(
             diagram=request.diagram,
             initial_inputs=request.inputs,
             max_steps=request.max_steps,
+        )
+
+    @application.post("/api/math/analyze", response_model=MathAnalysisResponse)
+    def post_math_analyze(request: MathAnalysisRequest) -> MathAnalysisResponse:
+        return analyze_math_plot(
+            diagram=request.diagram,
+            start_index=request.start_index,
+            end_index=request.end_index,
+        )
+
+    @application.post("/api/math/import-csv", response_model=DiagramDocument)
+    def post_math_import_csv(request: MathCsvImportRequest) -> DiagramDocument:
+        return parse_csv_to_math_plot(
+            csv_text=request.csv_text,
+            title=request.title,
+            x_label=request.x_label,
+            x_unit=request.x_unit,
+            y_label=request.y_label,
+            y_unit=request.y_unit,
         )
 
     @application.get("/api/examples", response_model=list[ExampleSummary])

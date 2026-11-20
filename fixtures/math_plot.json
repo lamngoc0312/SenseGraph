@@ -1,0 +1,96 @@
+{
+  "schema_version": "1.0",
+  "id": "math_plot",
+  "title": "Projectile Height vs. Time",
+  "domain": "math_plot",
+  "summary": "A line plot of projectile height (meters) versus time (seconds) for the sample function y = -x^2 + 4x across 5 exact data points from x = 0 s to x = 4 s. Height rises to a maximum of 4 m at 2 s and returns to 0 m at 4 s.",
+  "source": {
+    "mode": "fixture",
+    "filename": "math_plot.json",
+    "provider": null
+  },
+  "review_status": "confirmed",
+  "nodes": [
+    {
+      "id": "pt_1",
+      "kind": "data_point",
+      "label": "Point 1 (0 s, 0 m)",
+      "description": "Launch point at Time = 0 s, Height = 0 m (exact).",
+      "attributes": {"x": 0, "y": 0, "exact": true}
+    },
+    {
+      "id": "pt_2",
+      "kind": "data_point",
+      "label": "Point 2 (1 s, 3 m)",
+      "description": "Rising point at Time = 1 s, Height = 3 m (exact).",
+      "attributes": {"x": 1, "y": 3, "exact": true}
+    },
+    {
+      "id": "pt_3",
+      "kind": "data_point",
+      "label": "Point 3 (2 s, 4 m)",
+      "description": "Peak height at Time = 2 s, Height = 4 m (exact).",
+      "attributes": {"x": 2, "y": 4, "exact": true}
+    },
+    {
+      "id": "pt_4",
+      "kind": "data_point",
+      "label": "Point 4 (3 s, 3 m)",
+      "description": "Descending point at Time = 3 s, Height = 3 m (exact).",
+      "attributes": {"x": 3, "y": 3, "exact": true}
+    },
+    {
+      "id": "pt_5",
+      "kind": "data_point",
+      "label": "Point 5 (4 s, 0 m)",
+      "description": "Landing point at Time = 4 s, Height = 0 m (exact).",
+      "attributes": {"x": 4, "y": 0, "exact": true}
+    }
+  ],
+  "edges": [
+    {
+      "id": "seg_1",
+      "source": "pt_1",
+      "target": "pt_2",
+      "relation": "series_next",
+      "description": "From (0 s, 0 m) to (1 s, 3 m): increasing by +3 m."
+    },
+    {
+      "id": "seg_2",
+      "source": "pt_2",
+      "target": "pt_3",
+      "relation": "series_next",
+      "description": "From (1 s, 3 m) to (2 s, 4 m): increasing by +1 m."
+    },
+    {
+      "id": "seg_3",
+      "source": "pt_3",
+      "target": "pt_4",
+      "relation": "series_next",
+      "description": "From (2 s, 4 m) to (3 s, 3 m): decreasing by -1 m."
+    },
+    {
+      "id": "seg_4",
+      "source": "pt_4",
+      "target": "pt_5",
+      "relation": "series_next",
+      "description": "From (3 s, 3 m) to (4 s, 0 m): decreasing by -3 m."
+    }
+  ],
+  "domain_model": {
+    "kind": "math_plot",
+    "x_label": "Time",
+    "x_unit": "s",
+    "y_label": "Height",
+    "y_unit": "m",
+    "function_label": "y = -x^2 + 4x",
+    "points": [
+      {"id": "pt_1", "x": 0, "y": 0, "label": "Point 1 (0 s, 0 m)", "exact": true},
+      {"id": "pt_2", "x": 1, "y": 3, "label": "Point 2 (1 s, 3 m)", "exact": true},
+      {"id": "pt_3", "x": 2, "y": 4, "label": "Point 3 (2 s, 4 m)", "exact": true},
+      {"id": "pt_4", "x": 3, "y": 3, "label": "Point 4 (3 s, 3 m)", "exact": true},
+      {"id": "pt_5", "x": 4, "y": 0, "label": "Point 5 (4 s, 0 m)", "exact": true}
+    ]
+  },
+  "warnings": []
+}

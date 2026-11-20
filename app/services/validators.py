@@ -12,6 +12,7 @@ from app.domains.flowchart import (
     ALLOWED_FLOWCHART_RELATIONS,
     validate_flowchart,
 )
+from app.domains.mathematics import validate_math_plot
 from app.domains.physics import validate_series_circuit
 from app.models import DiagramDocument, ValidationResponse
 
@@ -93,6 +94,17 @@ def validate_diagram(diagram: DiagramDocument) -> ValidationResponse:
                 structural_errors.append(
                     f"Edge '{edge.id}' has relation '{edge.relation}', not allowed in cs_flowchart."
                 )
+    elif diagram.domain == "math_plot":
+        for node in diagram.nodes:
+            if node.kind != "data_point":
+                structural_errors.append(
+                    f"Node '{node.id}' has kind '{node.kind}', expected 'data_point' in math_plot."
+                )
+        for edge in diagram.edges:
+            if edge.relation != "series_next":
+                structural_errors.append(
+                    f"Edge '{edge.id}' has relation '{edge.relation}', expected 'series_next'."
+                )
 
     if structural_errors:
         return ValidationResponse(
@@ -122,13 +134,23 @@ def validate_diagram(diagram: DiagramDocument) -> ValidationResponse:
             errors=biology_result.errors,
         )
 
-    flowchart_result = validate_flowchart(diagram)
-    warnings.extend(flowchart_result.warnings)
+    if diagram.domain == "cs_flowchart":
+        flowchart_result = validate_flowchart(diagram)
+        warnings.extend(flowchart_result.warnings)
+        return ValidationResponse(
+            valid=True,
+            simulation_ready=flowchart_result.simulation_ready,
+            warnings=warnings,
+            errors=flowchart_result.errors,
+        )
+
+    math_result = validate_math_plot(diagram)
+    warnings.extend(math_result.warnings)
     return ValidationResponse(
         valid=True,
-        simulation_ready=flowchart_result.simulation_ready,
+        simulation_ready=math_result.simulation_ready,
         warnings=warnings,
-        errors=flowchart_result.errors,
+        errors=math_result.errors,
     )
 
 

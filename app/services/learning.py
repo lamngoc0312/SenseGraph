@@ -14,6 +14,7 @@ from app.domains.biology import (
     remove_organism,
 )
 from app.domains.flowchart import execute_flowchart
+from app.domains.mathematics import analyze_interval, analyze_math_plot
 from app.domains.physics import evaluate_circuit_state, toggle_switch
 from app.models import (
     ChallengeOption,
@@ -22,6 +23,7 @@ from app.models import (
     LearningChallenge,
     LearningChallengeSetResponse,
     LearningEvaluationResponse,
+    MathPlotModel,
     SeriesCircuitModel,
 )
 from app.services.validators import validate_diagram
@@ -815,6 +817,153 @@ def _evaluate_flowchart_challenge(
     )
 
 
+# --- Mathematics XY Plot challenges (Phase 9) ---
+
+
+def _build_math_challenges(diagram: DiagramDocument) -> list[LearningChallenge]:
+    if not isinstance(diagram.domain_model, MathPlotModel):
+        return []
+    dm = diagram.domain_model
+    pts = dm.points
+    if len(pts) < 2:
+        return []
+
+    challenges: list[LearningChallenge] = [
+        LearningChallenge(
+            id="math_max:global",
+            template="math_global_maximum",
+            title=f"Identify Maximum {dm.y_label}",
+            prompt=(
+                f"Across the {len(pts)} data points in this plot, which point has the "
+                f"maximum value of {dm.y_label}?"
+            ),
+            hint="Compare the y-values of all points in the dataset.",
+            input_type="single_choice",
+            options=[ChallengeOption(id=p.id, label=p.label) for p in pts],
+            action_type="inspect_only",
+            target_id=pts[0].id,
+            scientific_note=(
+                "Computed strictly over the finite provided dataset; never extrapolates "
+                "beyond the given domain or invents asymptotes."
+            ),
+        )
+    ]
+
+    analysis = analyze_math_plot(diagram)
+    if analysis.monotonic_intervals:
+        iv = analysis.monotonic_intervals[0]
+        challenges.append(
+            LearningChallenge(
+                id=f"math_trend:{iv.start_id}:{iv.end_id}",
+                template="math_interval_trend",
+                title=f"Identify Trend from {dm.x_label} = {iv.start_x:g} to {iv.end_x:g}",
+                prompt=(
+                    f"Between {dm.x_label} = {iv.start_x:g} {dm.x_unit} and "
+                    f"{dm.x_label} = {iv.end_x:g} {dm.x_unit}, is {dm.y_label} "
+                    "increasing, decreasing, or constant?"
+                ),
+                hint="Inspect the change in y between the start and end points of this interval.",
+                input_type="single_choice",
+                options=[
+                    ChallengeOption(id="increasing", label="Increasing"),
+                    ChallengeOption(id="decreasing", label="Decreasing"),
+                    ChallengeOption(id="constant", label="Constant"),
+                ],
+                action_type="inspect_only",
+                target_id=iv.start_id,
+                scientific_note="Trend is determined directly from exact adjacent point differences.",
+            )
+        )
+
+    return challenges
+
+
+def _evaluate_math_challenge(
+    diagram: DiagramDocument,
+    challenge_id: str,
+    selected_option_ids: list[str],
+) -> LearningEvaluationResponse:
+    assert isinstance(diagram.domain_model, MathPlotModel)
+    dm = diagram.domain_model
+    analysis = analyze_math_plot(diagram)
+
+    if challenge_id == "math_max:global":
+        expected = analysis.global_max.id
+        selected_clean = [s.strip() for s in selected_option_ids if s.strip()]
+        correct = selected_clean == [expected]
+        summary = (
+            f"Correct! Maximum {dm.y_label} is {analysis.global_max.y:g} {dm.y_unit} at {analysis.global_max.label}."
+            if correct
+            else f"Not quite. Maximum {dm.y_label} is {analysis.global_max.y:g} {dm.y_unit} at {analysis.global_max.label}."
+        )
+        explanation = (
+            f"Comparing all {analysis.point_count} points, {analysis.global_max.label} reaches "
+            f"the highest {dm.y_label} ({analysis.global_max.y:g} {dm.y_unit}), while "
+            f"{analysis.global_min.label} is the minimum ({analysis.global_min.y:g} {dm.y_unit})."
+        )
+        return LearningEvaluationResponse(
+            challenge_id=challenge_id,
+            correct=correct,
+            selected_option_ids=selected_clean,
+            expected_option_ids=[expected],
+            expected_labels=[analysis.global_max.label],
+            summary=summary,
+            explanation=explanation,
+            evidence=[
+                f"Global maximum: {analysis.global_max.label} ({'exact' if analysis.global_max.exact else 'estimated'})",
+                f"Global minimum: {analysis.global_min.label}",
+            ],
+            related_node_ids=[analysis.global_max.id, analysis.global_min.id],
+            simulation_result=None,
+        )
+
+    if challenge_id.startswith("math_trend:"):
+        parts = challenge_id.split(":")
+        if len(parts) != 3:
+            raise DomainSimulationError(
+                code="INVALID_CHALLENGE",
+                message=f"Invalid math challenge '{challenge_id}'.",
+                status_code=400,
+            )
+        idx_map = {p.id: i for i, p in enumerate(dm.points)}
+        if parts[1] not in idx_map or parts[2] not in idx_map:
+            raise DomainSimulationError(
+                code="UNKNOWN_TARGET",
+                message="Interval endpoints not found in math plot.",
+                status_code=400,
+            )
+        iv = analyze_interval(diagram, idx_map[parts[1]], idx_map[parts[2]])
+        expected = iv.trend
+        selected_clean = [s.strip().lower() for s in selected_option_ids if s.strip()]
+        correct = selected_clean == [expected]
+        summary = (
+            f"Correct! The interval is {expected}. {iv.announcement}"
+            if correct
+            else f"Not quite. The interval is {expected}. {iv.announcement}"
+        )
+        return LearningEvaluationResponse(
+            challenge_id=challenge_id,
+            correct=correct,
+            selected_option_ids=selected_clean,
+            expected_option_ids=[expected],
+            expected_labels=[expected.capitalize()],
+            summary=summary,
+            explanation=iv.announcement,
+            evidence=[
+                f"Delta x = {iv.delta_x:g}, Delta y = {iv.delta_y:g}",
+                f"Average rate of change = {iv.avg_rate_of_change:g}",
+            ],
+            related_node_ids=[parts[1], parts[2]],
+            simulation_result=None,
+        )
+
+    raise DomainSimulationError(
+        code="INVALID_CHALLENGE",
+        message=f"Unsupported math challenge '{challenge_id}'.",
+        status_code=400,
+    )
+
+
 # --- Public API ---
 
 
@@ -826,8 +975,10 @@ def generate_challenges(diagram: DiagramDocument) -> LearningChallengeSetRespons
         challenges = _build_physics_challenges(diagram)
     elif diagram.domain == "biology_food_web":
         challenges = _build_biology_challenges(diagram)
-    else:
+    elif diagram.domain == "cs_flowchart":
         challenges = _build_flowchart_challenges(diagram)
+    else:
+        challenges = _build_math_challenges(diagram)
 
     if not challenges:
         return LearningChallengeSetResponse(
@@ -860,4 +1011,6 @@ def evaluate_challenge(
         return _evaluate_physics_challenge(diagram, challenge_id, selected_option_ids)
     if diagram.domain == "biology_food_web":
         return _evaluate_biology_challenge(diagram, challenge_id, selected_option_ids)
-    return _evaluate_flowchart_challenge(diagram, challenge_id, selected_option_ids)
+    if diagram.domain == "cs_flowchart":
+        return _evaluate_flowchart_challenge(diagram, challenge_id, selected_option_ids)
+    return _evaluate_math_challenge(diagram, challenge_id, selected_option_ids)

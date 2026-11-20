@@ -270,6 +270,9 @@
           <button type="button" id="switch-cs-btn" class="btn btn-ghost">
             Load CS Flowchart
           </button>
+          <button type="button" id="switch-math-btn" class="btn btn-ghost">
+            Load Math Plot
+          </button>
         </div>
       </div>
 
@@ -520,6 +523,46 @@
                   Next step
                 </button>
               </div>
+            </div>
+
+            <!-- Phase 9: Mathematics Point-by-Point, Interval, Optional Sonification & CSV -->
+            <div id="math-controls-panel" class="flowchart-trace-panel" hidden>
+              <div class="lab-header">
+                <h4>Point &amp; Interval Explorer</h4>
+                <span id="math-point-counter" class="badge badge-domain">Point 1 of 5</span>
+              </div>
+              <p id="math-point-readout" class="feedback-announcement"></p>
+              <div class="tour-controls" role="group" aria-label="Point-by-point navigation">
+                <button type="button" id="math-prev-pt-btn" class="btn btn-secondary btn-sm">
+                  Previous point
+                </button>
+                <button type="button" id="math-next-pt-btn" class="btn btn-primary btn-sm">
+                  Next point
+                </button>
+                <button type="button" id="math-sonify-pt-btn" class="btn btn-ghost btn-sm">
+                  Play point tone (optional)
+                </button>
+                <button type="button" id="math-sonify-all-btn" class="btn btn-ghost btn-sm">
+                  Play series audio
+                </button>
+              </div>
+              <div class="form-row">
+                <div class="form-field">
+                  <label for="math-interval-start">Interval start point</label>
+                  <select id="math-interval-start"></select>
+                </div>
+                <div class="form-field">
+                  <label for="math-interval-end">Interval end point</label>
+                  <select id="math-interval-end"></select>
+                </div>
+              </div>
+              <div class="tour-controls">
+                <button type="button" id="math-compare-btn" class="btn btn-secondary btn-sm">
+                  Compare Interval
+                </button>
+              </div>
+              <p id="math-interval-result" class="summary-text"></p>
+              <ul id="math-analysis-list" class="changes-list"></ul>
             </div>
 
             <p id="experiment-limitation" class="limitation-note"></p>

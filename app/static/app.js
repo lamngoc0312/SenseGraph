@@ -33,6 +33,14 @@
       cardClass: "module-card-cs",
       buttonClass: "btn-primary",
     },
+    math_plot: {
+      heading: "Mathematics Explorer",
+      summary:
+        "Explore an XY line plot point-by-point or by intervals. Inspect exact extrema, monotonic trends, intercepts, and optional pitch sonification.",
+      buttonLabel: "Explore Example Math Plot",
+      cardClass: "module-card-math",
+      buttonClass: "btn-teal",
+    },
   };
 
   const state = {
@@ -66,6 +74,9 @@
     flowchartTrace: null,
     flowchartStepIdx: 0,
     flowchartInputValues: {},
+    // Phase 9: Mathematics Plot State
+    mathAnalysis: null,
+    mathPointIdx: 0,
     isBusy: false,
   };
 
@@ -117,6 +128,7 @@
     switchPhysicsBtn: document.getElementById("switch-physics-btn"),
     switchBiologyBtn: document.getElementById("switch-biology-btn"),
     switchCsBtn: document.getElementById("switch-cs-btn"),
+    switchMathBtn: document.getElementById("switch-math-btn"),
     modeExploreBtn: document.getElementById("mode-explore-btn"),
     modeLabBtn: document.getElementById("mode-lab-btn"),
     learningLabPanel: document.getElementById("learning-lab-panel"),
@@ -186,6 +198,18 @@
     traceStepVars: document.getElementById("trace-step-vars"),
     tracePrevBtn: document.getElementById("trace-prev-btn"),
     traceNextBtn: document.getElementById("trace-next-btn"),
+    mathControlsPanel: document.getElementById("math-controls-panel"),
+    mathPointCounter: document.getElementById("math-point-counter"),
+    mathPointReadout: document.getElementById("math-point-readout"),
+    mathPrevPtBtn: document.getElementById("math-prev-pt-btn"),
+    mathNextPtBtn: document.getElementById("math-next-pt-btn"),
+    mathSonifyPtBtn: document.getElementById("math-sonify-pt-btn"),
+    mathSonifyAllBtn: document.getElementById("math-sonify-all-btn"),
+    mathIntervalStart: document.getElementById("math-interval-start"),
+    mathIntervalEnd: document.getElementById("math-interval-end"),
+    mathCompareBtn: document.getElementById("math-compare-btn"),
+    mathIntervalResult: document.getElementById("math-interval-result"),
+    mathAnalysisList: document.getElementById("math-analysis-list"),
     experimentLimitation: document.getElementById("experiment-limitation"),
 
     allRelationsList: document.getElementById("all-relations-list"),
@@ -284,6 +308,7 @@
     if (domain === "physics_circuit") return "Physics — Series Circuit";
     if (domain === "biology_food_web") return "Biology — Food Web";
     if (domain === "cs_flowchart") return "Computer Science — Flowchart";
+    if (domain === "math_plot") return "Mathematics — XY Line Plot";
     return domain;
   }
 
@@ -1053,6 +1078,14 @@
       state.flowchartTrace = null;
       state.flowchartStepIdx = 0;
       state.flowchartInputValues = {};
+      state.mathAnalysis = null;
+      state.mathPointIdx = 0;
+      if (confirmed.domain === "math_plot") {
+        state.mathAnalysis = await apiRequest("/api/math/analyze", {
+          method: "POST",
+          body: JSON.stringify({ diagram: confirmed }),
+        });
+      }
       stopTts();
       resetLabState();
       await loadLabChallengesForBaseline();
@@ -1919,6 +1952,17 @@
           value: `${state.flowchartTrace.status} (${state.flowchartTrace.steps_executed} steps)`,
         });
       }
+    } else if (diagram.domain === "math_plot") {
+      const dm = diagram.domain_model;
+      stats.push({ label: "Data Points", value: String(dm.points.length) });
+      stats.push({ label: "X Axis", value: `${dm.x_label}${dm.x_unit ? ` (${dm.x_unit})` : ""}` });
+      stats.push({ label: "Y Axis", value: `${dm.y_label}${dm.y_unit ? ` (${dm.y_unit})` : ""}` });
+      if (state.mathAnalysis) {
+        stats.push({
+          label: "Global Max",
+          value: `${state.mathAnalysis.global_max.y} ${dm.y_unit}`.trim(),
+        });
+      }
     }
 
     for (const stat of stats) {
@@ -2324,11 +2368,21 @@
 
       dom.experimentLimitation.textContent =
         "Safety boundary: Uses a restricted integer/boolean expression parser (no eval/exec) with bounded step limits to halt infinite loops safely.";
-    }
-
-    if (diagram.domain === "physics_circuit") {
+      dom.mathControlsPanel.hidden = true;
+    } else if (diagram.domain === "math_plot") {
       dom.flowchartInputsBlock.hidden = true;
       dom.flowchartTracePanel.hidden = true;
+      dom.experimentGuidance.textContent =
+        "Navigate point-by-point or compare intervals using the deterministic math engine. Optional audio sonification is volume-limited and user-triggered.";
+      renderMathControlsPanel(diagram);
+      dom.experimentLimitation.textContent =
+        "Mathematical boundary: Extrema, intervals, and intercepts are computed strictly over the finite provided dataset. No asymptotes or unseen extrapolations are invented.";
+    }
+
+    if (diagram.domain === "physics_circuit" || diagram.domain === "biology_food_web") {
+      dom.flowchartInputsBlock.hidden = true;
+      dom.flowchartTracePanel.hidden = true;
+      dom.mathControlsPanel.hidden = true;
     }
 
     const resetBtn = document.createElement("button");
@@ -2413,6 +2467,10 @@
     } else if (diagram.domain === "cs_flowchart") {
       dom.domainConvention.textContent =
         "Flowchart convention: Execution starts at Start, evaluates restricted integer/boolean assignments and True/False decisions, and halts at End or max_steps.";
+    } else if (diagram.domain === "math_plot") {
+      const dm = diagram.domain_model;
+      dom.domainConvention.textContent =
+        `Plot convention: ${dm.x_label}${dm.x_unit ? ` (${dm.x_unit})` : ""} on the horizontal axis and ${dm.y_label}${dm.y_unit ? ` (${dm.y_unit})` : ""} on the vertical axis. Exact and estimated points are explicitly labeled.`;
     } else {
       dom.domainConvention.textContent =
         "Circuit convention: Wires connect components in one continuous series loop. Bulbs turn on only when the loop is complete and the switch is closed.";
@@ -2569,6 +2627,146 @@
     }
   }
 
+  // --- Phase 9: Mathematics Point/Interval Explorer & Optional Sonification ---
+
+  function playSafeTone(yValue, yMin, yMax, durationMs = 220, delayMs = 0) {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    try {
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const span = yMax - yMin || 1;
+      const ratio = Math.min(1, Math.max(0, (yValue - yMin) / span));
+      osc.frequency.value = 260 + ratio * 520; // Predictable 260–780 Hz range
+      osc.type = "sine";
+      gain.gain.value = 0.12; // Strictly volume-limited
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      const startTime = ctx.currentTime + delayMs / 1000;
+      const endTime = startTime + durationMs / 1000;
+      osc.start(startTime);
+      osc.stop(endTime);
+      osc.onended = () => {
+        ctx.close().catch(() => {});
+      };
+    } catch {
+      // Ignore audio errors when Web Audio is unavailable.
+    }
+  }
+
+  function renderMathControlsPanel(diagram) {
+    if (!diagram || diagram.domain !== "math_plot") {
+      dom.mathControlsPanel.hidden = true;
+      return;
+    }
+    const dm = diagram.domain_model;
+    const pts = dm.points || [];
+    if (pts.length === 0) {
+      dom.mathControlsPanel.hidden = true;
+      return;
+    }
+    dom.mathControlsPanel.hidden = false;
+    state.mathPointIdx = Math.min(Math.max(0, state.mathPointIdx), pts.length - 1);
+    const pt = pts[state.mathPointIdx];
+    const prevPt = state.mathPointIdx > 0 ? pts[state.mathPointIdx - 1] : null;
+    const deltaPart = prevPt
+      ? ` Change from previous point: ${pt.y - prevPt.y >= 0 ? "+" : ""}${pt.y - prevPt.y} ${dm.y_unit}.`
+      : " First point in series.";
+
+    dom.mathPointCounter.textContent = `Point ${state.mathPointIdx + 1} of ${pts.length}`;
+    dom.mathPointReadout.textContent =
+      `${pt.label} · ${dm.x_label}: ${pt.x} ${dm.x_unit}, ${dm.y_label}: ${pt.y} ${dm.y_unit} ` +
+      `(${pt.exact ? "exact" : "estimated"}).${deltaPart}`;
+
+    dom.mathPrevPtBtn.disabled = state.mathPointIdx <= 0;
+    dom.mathNextPtBtn.disabled = state.mathPointIdx >= pts.length - 1;
+
+    // Populate interval selectors
+    const prevStart = dom.mathIntervalStart.value || "0";
+    const prevEnd = dom.mathIntervalEnd.value || String(pts.length - 1);
+    dom.mathIntervalStart.textContent = "";
+    dom.mathIntervalEnd.textContent = "";
+    pts.forEach((p, idx) => {
+      const o1 = document.createElement("option");
+      o1.value = String(idx);
+      o1.textContent = p.label;
+      o1.selected = String(idx) === prevStart;
+      dom.mathIntervalStart.appendChild(o1);
+
+      const o2 = document.createElement("option");
+      o2.value = String(idx);
+      o2.textContent = p.label;
+      o2.selected = String(idx) === prevEnd;
+      dom.mathIntervalEnd.appendChild(o2);
+    });
+
+    dom.mathAnalysisList.textContent = "";
+    if (state.mathAnalysis) {
+      const a = state.mathAnalysis;
+      const lines = [
+        `Global maximum: ${a.global_max.label}`,
+        `Global minimum: ${a.global_min.label}`,
+        ...a.monotonic_intervals.map(
+          (iv) =>
+            `Interval [${iv.start_x}, ${iv.end_x}]: ${iv.trend} (Δy = ${iv.delta_y}, avg rate = ${iv.avg_rate_of_change})`
+        ),
+        ...a.x_intercepts.map(
+          (ic) => `x-intercept at x = ${ic.x} (${ic.exact ? "exact" : "interpolated"}: ${ic.note})`
+        ),
+      ];
+      if (a.y_intercept) {
+        lines.push(
+          `y-intercept at y = ${a.y_intercept.y} (${a.y_intercept.exact ? "exact" : "interpolated"})`
+        );
+      }
+      for (const line of lines) {
+        const li = document.createElement("li");
+        li.textContent = line;
+        dom.mathAnalysisList.appendChild(li);
+      }
+      dom.mathIntervalResult.textContent = a.interval_summary
+        ? a.interval_summary.announcement
+        : "";
+    }
+  }
+
+  function stepMathPoint(delta) {
+    if (!state.currentDiagram || state.currentDiagram.domain !== "math_plot") return;
+    const pts = state.currentDiagram.domain_model.points;
+    state.mathPointIdx = Math.min(Math.max(0, state.mathPointIdx + delta), pts.length - 1);
+    state.selectedNodeId = pts[state.mathPointIdx].id;
+    renderComponentList(state.currentDiagram);
+    renderSelectedDetail(state.currentDiagram);
+    renderSemanticSvgGraph(state.currentDiagram);
+    renderMathControlsPanel(state.currentDiagram);
+    announce(dom.mathPointReadout.textContent);
+  }
+
+  async function runMathIntervalCompare() {
+    if (!state.currentDiagram || state.currentDiagram.domain !== "math_plot") return;
+    clearError();
+    const startIdx = parseInt(dom.mathIntervalStart.value, 10);
+    const endIdx = parseInt(dom.mathIntervalEnd.value, 10);
+    try {
+      const analysis = await apiRequest("/api/math/analyze", {
+        method: "POST",
+        body: JSON.stringify({
+          diagram: state.currentDiagram,
+          start_index: startIdx,
+          end_index: endIdx,
+        }),
+      });
+      state.mathAnalysis = analysis;
+      renderMathControlsPanel(state.currentDiagram);
+      if (analysis.interval_summary) {
+        announce(analysis.interval_summary.announcement);
+      }
+    } catch (err) {
+      showError(err.message);
+    }
+  }
+
   async function loadExample(exampleId) {
     clearError();
     state.isBusy = true;
@@ -2588,6 +2786,14 @@
       state.flowchartTrace = null;
       state.flowchartStepIdx = 0;
       state.flowchartInputValues = {};
+      state.mathAnalysis = null;
+      state.mathPointIdx = 0;
+      if (diagram.domain === "math_plot") {
+        state.mathAnalysis = await apiRequest("/api/math/analyze", {
+          method: "POST",
+          body: JSON.stringify({ diagram }),
+        });
+      }
       stopTts();
       resetLabState();
       await loadLabChallengesForBaseline();
@@ -2705,8 +2911,26 @@
     dom.switchPhysicsBtn.addEventListener("click", () => loadExample("physics_series"));
     dom.switchBiologyBtn.addEventListener("click", () => loadExample("biology_food_web"));
     dom.switchCsBtn.addEventListener("click", () => loadExample("cs_flowchart"));
+    dom.switchMathBtn.addEventListener("click", () => loadExample("math_plot"));
     dom.tracePrevBtn.addEventListener("click", () => stepFlowchartTrace(-1));
     dom.traceNextBtn.addEventListener("click", () => stepFlowchartTrace(1));
+    dom.mathPrevPtBtn.addEventListener("click", () => stepMathPoint(-1));
+    dom.mathNextPtBtn.addEventListener("click", () => stepMathPoint(1));
+    dom.mathCompareBtn.addEventListener("click", runMathIntervalCompare);
+    dom.mathSonifyPtBtn.addEventListener("click", () => {
+      if (!state.currentDiagram || state.currentDiagram.domain !== "math_plot") return;
+      const pts = state.currentDiagram.domain_model.points;
+      const ys = pts.map((p) => p.y);
+      playSafeTone(pts[state.mathPointIdx].y, Math.min(...ys), Math.max(...ys));
+    });
+    dom.mathSonifyAllBtn.addEventListener("click", () => {
+      if (!state.currentDiagram || state.currentDiagram.domain !== "math_plot") return;
+      const pts = state.currentDiagram.domain_model.points;
+      const ys = pts.map((p) => p.y);
+      const yMin = Math.min(...ys);
+      const yMax = Math.max(...ys);
+      pts.forEach((p, idx) => playSafeTone(p.y, yMin, yMax, 180, idx * 230));
+    });
 
     dom.modeExploreBtn.addEventListener("click", () => setExplorerMode("explore"));
     dom.modeLabBtn.addEventListener("click", () => setExplorerMode("lab"));

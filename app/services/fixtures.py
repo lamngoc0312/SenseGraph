@@ -13,6 +13,7 @@ BUNDLED_FIXTURE_FILES: tuple[str, ...] = (
     "physics_series.json",
     "biology_food_web.json",
     "cs_flowchart.json",
+    "math_plot.json",
 )
 
 
