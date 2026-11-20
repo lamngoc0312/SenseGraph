@@ -37,6 +37,28 @@ PIL_FORMAT_TO_MIME: dict[str, str] = {
     "WEBP": "image/webp",
 }
 
+ALLOWED_PHYSICS_KINDS = frozenset({"battery", "switch", "bulb"})
+ALLOWED_BIOLOGY_ALIASES = frozenset(
+    {
+        "",
+        "organism",
+        "producer",
+        "consumer",
+        "herbivore",
+        "carnivore",
+        "omnivore",
+        "predator",
+        "prey",
+        "plant",
+        "animal",
+        "decomposer",
+    }
+)
+
+MAX_IMAGE_WIDTH = 4096
+MAX_IMAGE_HEIGHT = 4096
+MAX_IMAGE_PIXELS = 16_000_000
+
 
 class VisionError(Exception):
     """Base structured error for image validation and AI extraction."""
@@ -56,7 +78,7 @@ class VisionError(Exception):
 
 
 class ImageValidationError(VisionError):
-    """Raised when an uploaded image fails size, MIME, or byte-integrity checks."""
+    """Raised when an uploaded image fails size, MIME, dimension, or byte-integrity checks."""
 
 
 class ProviderNotConfiguredError(VisionError):
@@ -109,7 +131,7 @@ class ProviderUnavailableError(VisionError):
 
 
 class ExtractionInvalidError(VisionError):
-    """Raised when the AI provider returns malformed or unusable extraction output."""
+    """Raised when the AI provider returns malformed or unsupported extraction output."""
 
     def __init__(self, message: str, details: list[str] | None = None) -> None:
         super().__init__(
@@ -142,7 +164,7 @@ def validate_uploaded_image(
     declared_mime: str | None,
     max_upload_mb: int = 5,
 ) -> str:
-    """Validate uploaded image size, allowed MIME type, and actual decoded image bytes.
+    """Validate uploaded image size, MIME match, pixel bounds, and decoded image bytes.
 
     Returns the canonical MIME type ('image/png', 'image/jpeg', or 'image/webp').
     Never logs raw image content and never writes uploaded bytes to disk.
@@ -163,23 +185,51 @@ def validate_uploaded_image(
         )
 
     normalized_declared = (declared_mime or "").split(";")[0].strip().lower()
-    if normalized_declared and normalized_declared not in ALLOWED_IMAGE_MIMES:
-        raise ImageValidationError(
-            code="UNSUPPORTED_MEDIA_TYPE",
-            message=(
-                f"Unsupported file type '{normalized_declared}'. "
-                "Only PNG, JPEG, and WEBP images are allowed."
-            ),
-            status_code=415,
-        )
+    expected_format: str | None = None
+    if normalized_declared:
+        expected_format = ALLOWED_IMAGE_MIMES.get(normalized_declared)
+        if expected_format is None:
+            raise ImageValidationError(
+                code="UNSUPPORTED_MEDIA_TYPE",
+                message=(
+                    f"Unsupported file type '{normalized_declared}'. "
+                    "Only PNG, JPEG, and WEBP images are allowed."
+                ),
+                status_code=415,
+            )
 
     try:
         with Image.open(io.BytesIO(image_bytes)) as img:
             detected_format = (img.format or "").upper()
+            width, height = img.size
+            if (
+                width <= 0
+                or height <= 0
+                or width > MAX_IMAGE_WIDTH
+                or height > MAX_IMAGE_HEIGHT
+                or (width * height) > MAX_IMAGE_PIXELS
+            ):
+                raise ImageValidationError(
+                    code="IMAGE_DIMENSIONS_TOO_LARGE",
+                    message=(
+                        f"Image dimensions ({width}x{height}) exceed the maximum allowed "
+                        f"size ({MAX_IMAGE_WIDTH}x{MAX_IMAGE_HEIGHT}, {MAX_IMAGE_PIXELS:,} pixels)."
+                    ),
+                    status_code=413,
+                )
             img.verify()
+
         # Re-open and decode pixels to catch truncated or corrupted image payloads.
         with Image.open(io.BytesIO(image_bytes)) as img:
             img.load()
+    except ImageValidationError:
+        raise
+    except Image.DecompressionBombError as exc:
+        raise ImageValidationError(
+            code="IMAGE_DIMENSIONS_TOO_LARGE",
+            message="Image dimensions are too large to process safely.",
+            status_code=413,
+        ) from exc
     except (UnidentifiedImageError, OSError, ValueError) as exc:
         raise ImageValidationError(
             code="INVALID_IMAGE",
@@ -195,6 +245,16 @@ def validate_uploaded_image(
             message=(
                 f"Unsupported image format '{detected_format or 'unknown'}'. "
                 "Only PNG, JPEG, and WEBP images are allowed."
+            ),
+            status_code=415,
+        )
+
+    if expected_format is not None and detected_format != expected_format:
+        raise ImageValidationError(
+            code="MIME_MISMATCH",
+            message=(
+                f"Uploaded image content ({detected_format}) does not match "
+                f"the declared content type '{normalized_declared}'."
             ),
             status_code=415,
         )
@@ -221,11 +281,12 @@ def build_extraction_prompt(domain: DomainType) -> str:
             "Allowed node kinds: 'battery', 'switch', 'bulb'.\n"
             "Allowed edge relation: 'wire'.\n"
             "Target scope: 1 battery, 1 switch, and 1 or 2 bulbs connected in a single series loop.\n"
-            "- If you see unsupported components (resistors, capacitors, parallel branches, multiple "
-            "batteries/switches), do NOT mislabel them as bulbs; add a warning explaining the ambiguity.\n"
+            "- If you see unsupported components (resistors, capacitors, motors, meters, "
+            "parallel branches), do NOT mislabel them as bulbs; report their actual kind "
+            "(e.g. 'resistor' or 'unknown') and add a warning.\n"
             "- List components in loop order in domain_model.sequence when identifiable.\n"
-            "- Identify switch_states ('open' or 'closed') for the switch when clearly visible; "
-            "if unclear, default to 'open' and add a warning.\n"
+            "- Identify switch_states ('open' or 'closed') only when clearly visible; "
+            "if unclear, omit or mark 'unknown' and add a warning.\n"
             "JSON shape:\n"
             "{\n"
             '  "title": "Short accessible title",\n'
@@ -286,7 +347,15 @@ def normalize_extraction_proposal(
     filename: str,
     provider_name: str,
 ) -> DiagramDocument:
-    """Normalize an untrusted AI JSON proposal into an unreviewed DiagramDocument v1."""
+    """Normalize an untrusted AI JSON proposal into an unreviewed DiagramDocument v1.
+
+    Scientific integrity policy (D12):
+    - Unsupported or unknown Physics component kinds are NEVER coerced to 'bulb'.
+      Instead, extraction fails cleanly with 422 AI_EXTRACTION_INVALID and actionable details.
+    - Out-of-domain component kinds in Biology (e.g. battery/switch/bulb) are rejected.
+    - Missing/uncertain switch state or ambiguous wires/arrows are explicitly flagged
+      and never silently treated as verified truth.
+    """
     if not isinstance(raw_proposal, dict):
         raise ExtractionInvalidError("AI extraction did not return a JSON object.")
 
@@ -306,6 +375,7 @@ def normalize_extraction_proposal(
     id_map: dict[str, str] = {}
     used_node_ids: set[str] = set()
     nodes: list[Node] = []
+    unsupported_nodes: list[str] = []
 
     for idx, item in enumerate(raw_nodes, start=1):
         if not isinstance(item, dict):
@@ -317,25 +387,29 @@ def normalize_extraction_proposal(
         used_node_ids.add(candidate_id)
         id_map[raw_id] = candidate_id
 
-        raw_kind = str(item.get("kind") or "").strip().lower()
-        if domain == "biology_food_web":
-            kind = "organism"
-            if raw_kind and raw_kind != "organism":
-                warnings.append(
-                    f"Normalized node '{candidate_id}' kind from '{raw_kind}' to 'organism'."
-                )
-        else:
-            if raw_kind in {"battery", "switch", "bulb"}:
-                kind = raw_kind
-            else:
-                # Preserve visibility for human review without inventing a fake bulb silently.
-                warnings.append(
-                    f"Component '{item.get('label') or candidate_id}' had unrecognized type "
-                    f"'{raw_kind or 'unknown'}'; please verify or remove it during review."
-                )
-                kind = "bulb"
-
         label = str(item.get("label") or candidate_id).strip() or candidate_id
+        raw_kind = str(item.get("kind") or "").strip().lower()
+
+        if domain == "physics_circuit":
+            if raw_kind not in ALLOWED_PHYSICS_KINDS:
+                unsupported_nodes.append(
+                    f"'{label}' has unsupported or unknown component type '{raw_kind or 'unknown'}'"
+                )
+                continue
+            kind = raw_kind
+        else:
+            if raw_kind in ALLOWED_BIOLOGY_ALIASES:
+                kind = "organism"
+                if raw_kind and raw_kind != "organism":
+                    warnings.append(
+                        f"Normalized biological role '{raw_kind}' on '{label}' to 'organism'."
+                    )
+            else:
+                unsupported_nodes.append(
+                    f"'{label}' has non-organism type '{raw_kind}' in biology_food_web"
+                )
+                continue
+
         description = str(item.get("description") or "").strip()
         attrs = item.get("attributes") if isinstance(item.get("attributes"), dict) else {}
 
@@ -347,6 +421,18 @@ def normalize_extraction_proposal(
                 description=description,
                 attributes=attrs,
             )
+        )
+
+    if unsupported_nodes:
+        if domain == "physics_circuit":
+            raise ExtractionInvalidError(
+                "Unsupported or unrecognized physics component(s) were detected. "
+                "Physics P0 supports only 1 battery, 1 switch, and 1–2 bulbs in a single series loop.",
+                details=unsupported_nodes,
+            )
+        raise ExtractionInvalidError(
+            "Unsupported non-organism object(s) were detected in this food web diagram.",
+            details=unsupported_nodes,
         )
 
     if not nodes:
@@ -366,11 +452,18 @@ def normalize_extraction_proposal(
             eid = f"{eid}_{idx}"
         used_edge_ids.add(eid)
 
-        src = id_map.get(str(item.get("source") or ""), _sanitize_identifier(str(item.get("source") or ""), "unknown", idx))
-        tgt = id_map.get(str(item.get("target") or ""), _sanitize_identifier(str(item.get("target") or ""), "unknown", idx))
+        src = id_map.get(
+            str(item.get("source") or ""),
+            _sanitize_identifier(str(item.get("source") or ""), "unknown", idx),
+        )
+        tgt = id_map.get(
+            str(item.get("target") or ""),
+            _sanitize_identifier(str(item.get("target") or ""), "unknown", idx),
+        )
         if src not in used_node_ids or tgt not in used_node_ids or src == tgt:
             warnings.append(
-                f"Dropped invalid AI edge '{eid}' ({src} -> {tgt}); please add or fix connections in review."
+                f"Dropped invalid AI edge '{eid}' ({src} -> {tgt}); "
+                "please add or correct connections during review."
             )
             continue
 
@@ -385,7 +478,11 @@ def normalize_extraction_proposal(
             )
         )
 
-    raw_dm = raw_proposal.get("domain_model") if isinstance(raw_proposal.get("domain_model"), dict) else {}
+    raw_dm = (
+        raw_proposal.get("domain_model")
+        if isinstance(raw_proposal.get("domain_model"), dict)
+        else {}
+    )
     if domain == "physics_circuit":
         raw_seq = raw_dm.get("sequence") if isinstance(raw_dm.get("sequence"), list) else []
         mapped_seq: list[str] = []
@@ -393,7 +490,6 @@ def normalize_extraction_proposal(
             mapped = id_map.get(str(s))
             if mapped and mapped not in mapped_seq:
                 mapped_seq.append(mapped)
-        # Fill from extracted nodes only so schema minItems=3..4 can be represented for human review.
         for n in nodes:
             if n.id not in mapped_seq and len(mapped_seq) < 4:
                 mapped_seq.append(n.id)
@@ -401,8 +497,8 @@ def normalize_extraction_proposal(
         if len(mapped_seq) < 3:
             raise ExtractionInvalidError(
                 "Physics extraction requires at least 3 circuit components "
-                "(1 battery, 1 switch, and 1-2 bulbs) to form a reviewable series circuit.",
-                details=[f"Only {len(mapped_seq)} component(s) were identified."],
+                "(1 battery, 1 switch, and 1–2 bulbs) to form a reviewable series circuit.",
+                details=[f"Only {len(mapped_seq)} valid component(s) were identified."],
             )
         mapped_seq = mapped_seq[:4]
 
@@ -420,11 +516,19 @@ def normalize_extraction_proposal(
                 if id_map.get(str(raw_k), str(raw_k)) == primary_switch:
                     raw_val = str(val).strip().lower()
                     break
-            switch_states[primary_switch] = raw_val if raw_val in {"open", "closed"} else "open"
+            if raw_val in {"open", "closed"}:
+                switch_states[primary_switch] = raw_val
+            else:
+                switch_states[primary_switch] = "open"
+                warnings.append(
+                    "Switch state was not clearly identified in the image; defaulted to 'open' "
+                    "for review. Please verify the switch state before confirming."
+                )
         else:
-            # Placeholder key to satisfy schema shape while validator flags missing switch for review.
             switch_states["missing_switch"] = "open"
-            warnings.append("No switch was clearly identified; please review component types.")
+            warnings.append(
+                "No switch was clearly identified; add or correct component types before confirming."
+            )
 
         domain_model: SeriesCircuitModel | FoodWebModel = SeriesCircuitModel(
             kind="series_circuit",
@@ -443,7 +547,9 @@ def normalize_extraction_proposal(
 
     safe_name = sanitize_filename(filename)
     doc_id = _sanitize_identifier(f"ai_{Path(safe_name).stem}", "ai_diagram", 1)
-    title = str(raw_proposal.get("title") or f"AI Extracted {domain.replace('_', ' ').title()}").strip()
+    title = str(
+        raw_proposal.get("title") or f"AI Extracted {domain.replace('_', ' ').title()}"
+    ).strip()
     summary = str(
         raw_proposal.get("summary")
         or "AI-generated diagram proposal. Review components and connections before confirming."
@@ -558,6 +664,15 @@ class GeminiVisionProvider(VisionProvider):
                 raise ProviderTimeoutError() from exc
             if "429" in err_text or "quota" in err_text or "resource_exhausted" in err_text:
                 raise ProviderQuotaError() from exc
+            if "404" in err_text or "not found" in err_text or "model" in err_text:
+                raise ProviderUnavailableError(
+                    f"Configured Gemini model '{self._settings.gemini_model}' was not found or "
+                    "is unavailable. Check GEMINI_MODEL in .env."
+                ) from exc
+            if "401" in err_text or "403" in err_text or "api key" in err_text or "permission" in err_text:
+                raise ProviderUnavailableError(
+                    "Gemini rejected the configured credentials. Verify GEMINI_API_KEY in .env."
+                ) from exc
             raise ProviderUnavailableError(
                 "Gemini vision request failed. Verify your API key, model name, and network connection."
             ) from exc

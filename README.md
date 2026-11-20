@@ -6,7 +6,7 @@ SenseGraph is an accessible interactive STEM diagram learning prototype designed
 
 - **Primary hackathon track:** Education
 - **Related social impact:** Community Impact
-- **Current status:** Phase 1 (Core Backend & Simulation Engines), Phase 2 (Accessible Frontend), and Phase 3 (Gemini Vision Extraction & Human Review UI) implemented and verified.
+- **Current status:** Phase 1 (Core Backend), Phase 2 (Accessible Frontend), Phase 3 (Gemini Vision & Human Review), and Phase 4 (Stability, Scientific Integrity & Security Audit) implemented and verified with automated tests.
 
 ---
 
@@ -18,7 +18,8 @@ SenseGraph is an accessible interactive STEM diagram learning prototype designed
 - **Biology P0 (`biology_food_web`):** Directed food-web engine (`food/prey -> consumer/predator`). Exposes incoming/outgoing feeding relationships, energy paths, organism removal with exact removed/remaining edge reporting, and explicit non-prediction disclaimers.
 - **Gemini Vision Extraction (`app/services/ai_vision.py`):**
   - Replaceable `VisionProvider` abstraction with `GeminiVisionProvider` using the official `google-genai` SDK.
-  - Validates uploaded PNG/JPEG/WEBP files (<= 5 MB) via Pillow byte-level decoding, never persists uploaded images by default, never logs raw image bytes or API keys, and treats embedded image text strictly as untrusted data.
+  - Validates uploaded PNG/JPEG/WEBP files (<= 5 MB, <= 4096×4096 / 16 MP pixel cap to guard against decompression bombs, strict declared-vs-actual MIME match, full Pillow decode). Never persists uploaded images by default, never logs raw image bytes or API keys, and treats embedded image text strictly as untrusted data.
+  - Enforces strict scientific integrity: unknown or unsupported physics component types (e.g. resistors) are rejected (`422 AI_EXTRACTION_INVALID`) rather than silently coerced to bulbs.
   - Always returns `source.mode="ai"`, `source.provider="gemini"`, and `review_status="unreviewed"` so human verification is mandatory before simulation.
 - **Stateless REST API:**
   - `GET /api/health`
@@ -97,6 +98,7 @@ Automated tests use mocked `VisionProvider` responses and never call the live Ge
 - Technical architecture & API contract: [docs/TECHNICAL_SPEC.md](docs/TECHNICAL_SPEC.md)
 - Accessibility requirements & test plan: [docs/ACCESSIBILITY_AND_TESTS.md](docs/ACCESSIBILITY_AND_TESTS.md)
 - Architecture decisions & risks: [docs/DECISIONS.md](docs/DECISIONS.md)
+- Extraction evaluation & manual QA checklist: [docs/EXTRACTION_EVALUATION.md](docs/EXTRACTION_EVALUATION.md)
 - Authoritative JSON Schema: [contracts/diagram.schema.json](contracts/diagram.schema.json)
 
 ---

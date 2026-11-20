@@ -414,3 +414,104 @@ def test_frontend_includes_phase3_analyze_and_review_markup() -> None:
         assert "/api/analyze" in js
         assert "/api/state" in js
         assert "/api/confirm" in js
+
+
+def test_unknown_physics_component_is_rejected_never_coerced_to_bulb() -> None:
+    proposal = _valid_physics_proposal()
+    proposal["nodes"][2] = {
+        "id": "resistor_1",
+        "kind": "resistor",
+        "label": "Resistor R1",
+        "description": "A resistor symbol.",
+        "attributes": {},
+    }
+    app = create_app(vision_provider=_MockVisionProvider(proposal))
+    png_bytes = _make_image_bytes("PNG")
+
+    with TestClient(app) as client:
+        resp = client.post(
+            "/api/analyze",
+            files={"file": ("resistor_circuit.png", png_bytes, "image/png")},
+            data={"domain": "physics_circuit", "consent": "true"},
+        )
+        assert resp.status_code == 422
+        body = resp.json()["error"]
+        assert body["code"] == "AI_EXTRACTION_INVALID"
+        assert any("resistor" in d.lower() for d in body["details"])
+
+
+def test_non_organism_node_in_biology_is_rejected() -> None:
+    proposal = _valid_biology_proposal()
+    proposal["nodes"].append(
+        {
+            "id": "battery_1",
+            "kind": "battery",
+            "label": "Battery B1",
+            "description": "Out-of-domain component.",
+            "attributes": {},
+        }
+    )
+    app = create_app(vision_provider=_MockVisionProvider(proposal))
+    png_bytes = _make_image_bytes("PNG")
+
+    with TestClient(app) as client:
+        resp = client.post(
+            "/api/analyze",
+            files={"file": ("mixed.png", png_bytes, "image/png")},
+            data={"domain": "biology_food_web", "consent": "true"},
+        )
+        assert resp.status_code == 422
+        assert resp.json()["error"]["code"] == "AI_EXTRACTION_INVALID"
+
+
+def test_uncertain_physics_switch_state_produces_explicit_warning() -> None:
+    proposal = _valid_physics_proposal()
+    proposal["domain_model"]["switch_states"] = {"switch_1": "unknown"}
+    app = create_app(vision_provider=_MockVisionProvider(proposal))
+    png_bytes = _make_image_bytes("PNG")
+
+    with TestClient(app) as client:
+        resp = client.post(
+            "/api/analyze",
+            files={"file": ("unclear_switch.png", png_bytes, "image/png")},
+            data={"domain": "physics_circuit", "consent": "true"},
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["review_status"] == "unreviewed"
+        assert any("switch state was not clearly identified" in w.lower() for w in body["warnings"])
+
+
+def test_mismatched_mime_type_and_oversized_dimensions_rejected() -> None:
+    provider = _MockVisionProvider(_valid_physics_proposal())
+    app = create_app(vision_provider=provider)
+    png_bytes = _make_image_bytes("PNG", size=(32, 32))
+
+    with TestClient(app) as client:
+        # Valid PNG bytes declared as JPEG -> 415 MIME_MISMATCH
+        resp_mismatch = client.post(
+            "/api/analyze",
+            files={"file": ("disguised.jpg", png_bytes, "image/jpeg")},
+            data={"domain": "physics_circuit", "consent": "true"},
+        )
+        assert resp_mismatch.status_code == 415
+        assert resp_mismatch.json()["error"]["code"] == "MIME_MISMATCH"
+
+        # Very wide image exceeding MAX_IMAGE_WIDTH (4096) -> 413 IMAGE_DIMENSIONS_TOO_LARGE
+        huge_dim_bytes = _make_image_bytes("PNG", size=(5000, 10))
+        resp_dims = client.post(
+            "/api/analyze",
+            files={"file": ("bomb.png", huge_dim_bytes, "image/png")},
+            data={"domain": "physics_circuit", "consent": "true"},
+        )
+        assert resp_dims.status_code == 413
+        assert resp_dims.json()["error"]["code"] == "IMAGE_DIMENSIONS_TOO_LARGE"
+        assert provider.calls == []
+
+
+def test_styles_css_enforces_native_hidden_attribute() -> None:
+    app = create_app()
+    with TestClient(app) as client:
+        css = client.get("/static/styles.css").text
+        assert "[hidden]" in css
+        assert "display: none !important;" in css

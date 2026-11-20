@@ -13,6 +13,8 @@
 - D9 (Phase 1): **Fixture IDs use the exact `id` values in `fixtures/*.json`** (`physics_series`, `biology_food_web`) rather than hyphenated aliases, matching `contracts/diagram.schema.json` and the bundled JSON files directly.
 - D10 (Phase 1): **`remove_organism` disallows removing the last remaining organism** (`400 INVALID_ACTION`) so that every `updated_diagram` returned by `/api/simulate` remains strictly valid against `contracts/diagram.schema.json` (`nodes.minItems >= 1`).
 - D11 (Phase 3): **Added read-only `POST /api/state` endpoint** to expose explicit backend-calculated physics (`bulb_states`, `switch_states`, `loop_wired`, `bulbs_on`) and biology counts so the frontend never derives scientific state by parsing natural-language summaries.
+- D12 (Phase 4): **Strict rejection of unknown/unsupported Physics component kinds (`422 AI_EXTRACTION_INVALID`)**. Unknown symbols (e.g., `resistor`, `capacitor`, `unknown`) are never coerced to `bulb`, preserving `contracts/diagram.schema.json` and preventing scientifically misleading confirmations.
+- D13 (Phase 4): **Strict upload security bounds**: image pixel dimensions capped at `4096x4096` (16 MP) before full decode to prevent decompression bombs, and declared MIME types must match actual decoded image format (`415 MIME_MISMATCH`).
 
 ## Open risks and mitigation
 
