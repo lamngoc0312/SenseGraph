@@ -1091,6 +1091,10 @@ def _evaluate_chemistry_challenge(
             if correct
             else f"Check the bonds: {node_by_id[target].label} is directly bonded to {_format_list(expected_labels)}."
         )
+        bond_descriptions = ", ".join(
+            f"{n.label} ({e.relation.replace('_', ' ')})"
+            for e, n, _ in neighbors
+        )
         return LearningEvaluationResponse(
             challenge_id=challenge_id,
             correct=correct,
@@ -1100,7 +1104,7 @@ def _evaluate_chemistry_challenge(
             summary=summary,
             explanation=(
                 f"Direct covalent bonds attached to {node_by_id[target].label}: "
-                f"{', '.join(f'{n.label} ({e.relation.replace('_', ' ')})' for e, n, _ in neighbors)}."
+                f"{bond_descriptions}."
             ),
             evidence=[
                 f"{node_by_id[target].label} — {n.label} ({e.relation})"

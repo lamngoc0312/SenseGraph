@@ -27,8 +27,8 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt ruff
 
-      - name: Run Ruff lint checks
-        run: python -m ruff check app tests evaluation
+      - name: Run Ruff lint checks (enforcing Python 3.11 syntax compatibility)
+        run: python -m ruff check --target-version py311 app tests evaluation
 
       - name: Run Pytest suite (mocked AI, no external secrets required)
         run: python -m pytest -v
