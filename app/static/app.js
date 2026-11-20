@@ -49,6 +49,11 @@
     labCompletedIds: new Set(),
     labCorrectIds: new Set(),
     labCurrentResult: null,
+    // Phase 6: Guided Tour & Optional TTS
+    tourStep: "overview", // "overview" | "component" | "connections"
+    tourText: "",
+    ttsSpeaking: false,
+    ttsPaused: false,
     isBusy: false,
   };
 
@@ -132,6 +137,23 @@
     diagramSummary: document.getElementById("diagram-summary"),
     domainConvention: document.getElementById("domain-convention"),
     diagramStats: document.getElementById("diagram-stats"),
+
+    // Phase 6: Guided Tour & SVG Graph
+    tourStepBadge: document.getElementById("tour-step-badge"),
+    tourTextOutput: document.getElementById("tour-text-output"),
+    tourOverviewBtn: document.getElementById("tour-overview-btn"),
+    tourPrevBtn: document.getElementById("tour-prev-btn"),
+    tourNextBtn: document.getElementById("tour-next-btn"),
+    tourConnectionsBtn: document.getElementById("tour-connections-btn"),
+    tourBackOverviewBtn: document.getElementById("tour-back-overview-btn"),
+    tourRepeatBtn: document.getElementById("tour-repeat-btn"),
+    tourTtsSpeakBtn: document.getElementById("tour-tts-speak-btn"),
+    tourTtsPauseBtn: document.getElementById("tour-tts-pause-btn"),
+    tourTtsStopBtn: document.getElementById("tour-tts-stop-btn"),
+    tourTtsRate: document.getElementById("tour-tts-rate"),
+    tourTtsStatus: document.getElementById("tour-tts-status"),
+    svgStateComparison: document.getElementById("svg-state-comparison"),
+    semanticGraphSvg: document.getElementById("semantic-graph-svg"),
 
     feedbackPanel: document.getElementById("feedback-panel"),
     feedbackAnnouncement: document.getElementById("feedback-announcement"),
@@ -979,6 +1001,8 @@
       state.reviewDraft = null;
       state.reviewValidation = null;
       state.explorerMode = "explore";
+      state.tourStep = "overview";
+      stopTts();
       resetLabState();
       await loadLabChallengesForBaseline();
       state.isBusy = false;
@@ -1287,6 +1311,498 @@
     renderExplorer();
     dom.labHeading.focus();
     announce("Guided Learning Lab session reset to Challenge 1.");
+  }
+
+  // --- Phase 6: Guided Tour, Optional User-Initiated TTS, & Responsive SVG Semantic Graph ---
+
+  const SVG_NS = "http://www.w3.org/2000/svg";
+
+  function createSvgEl(tag, attrs = {}) {
+    const el = document.createElementNS(SVG_NS, tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      el.setAttribute(k, String(v));
+    }
+    return el;
+  }
+
+  function stopTts() {
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+    state.ttsSpeaking = false;
+    state.ttsPaused = false;
+    updateTtsControls();
+  }
+
+  function updateTtsControls() {
+    const supported =
+      typeof window !== "undefined" &&
+      "speechSynthesis" in window &&
+      typeof window.SpeechSynthesisUtterance === "function";
+
+    if (!supported) {
+      dom.tourTtsSpeakBtn.disabled = true;
+      dom.tourTtsPauseBtn.disabled = true;
+      dom.tourTtsStopBtn.disabled = true;
+      dom.tourTtsRate.disabled = true;
+      dom.tourTtsStatus.textContent = "Browser speech synthesis is unavailable; text tour works normally.";
+      return;
+    }
+
+    dom.tourTtsSpeakBtn.disabled = !state.tourText;
+    dom.tourTtsPauseBtn.disabled = !state.ttsSpeaking;
+    dom.tourTtsPauseBtn.textContent = state.ttsPaused ? "Resume" : "Pause";
+    dom.tourTtsStopBtn.disabled = !state.ttsSpeaking;
+    dom.tourTtsStatus.textContent = state.ttsSpeaking
+      ? state.ttsPaused
+        ? "Voice paused"
+        : "Speaking explanation…"
+      : "";
+  }
+
+  function speakCurrentTourText() {
+    if (
+      !state.tourText ||
+      typeof window === "undefined" ||
+      !("speechSynthesis" in window)
+    ) {
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const utterance = new window.SpeechSynthesisUtterance(state.tourText);
+    utterance.rate = parseFloat(dom.tourTtsRate.value) || 1.0;
+    utterance.onstart = () => {
+      state.ttsSpeaking = true;
+      state.ttsPaused = false;
+      updateTtsControls();
+    };
+    utterance.onend = () => {
+      state.ttsSpeaking = false;
+      state.ttsPaused = false;
+      updateTtsControls();
+    };
+    utterance.onerror = () => {
+      state.ttsSpeaking = false;
+      state.ttsPaused = false;
+      updateTtsControls();
+    };
+    window.speechSynthesis.speak(utterance);
+  }
+
+  function togglePauseTts() {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    if (!state.ttsSpeaking) return;
+    if (state.ttsPaused) {
+      window.speechSynthesis.resume();
+      state.ttsPaused = false;
+    } else {
+      window.speechSynthesis.pause();
+      state.ttsPaused = true;
+    }
+    updateTtsControls();
+  }
+
+  function buildTourOverviewText(diagram) {
+    const prov = formatSourceLabel(diagram.source);
+    if (diagram.domain === "physics_circuit") {
+      const switchNode = diagram.nodes.find((n) => n.kind === "switch");
+      const swState = switchNode ? getSwitchDisplayState(diagram, switchNode.id) : "unknown";
+      const bulbs = diagram.nodes.filter((n) => n.kind === "bulb");
+      const bulbSummary = bulbs
+        .map((b) => `${b.label} is ${getBulbDisplayState(b.id)}`)
+        .join(", ");
+      return (
+        `Overview of ${diagram.title} (${prov}). ` +
+        `This single-loop series circuit has ${diagram.nodes.length} components and ` +
+        `${diagram.edges.length} wire connections. ` +
+        `${switchNode ? `${switchNode.label} is ${swState}. ` : ""}` +
+        `${bulbSummary ? `${bulbSummary}. ` : ""}` +
+        `${diagram.summary}`
+      );
+    }
+
+    return (
+      `Overview of ${diagram.title} (${prov}). ` +
+      `This directed food web has ${diagram.nodes.length} organisms and ` +
+      `${diagram.edges.length} feeding relationships. ` +
+      "Arrows point from food or prey to consumer or predator. " +
+      `${diagram.summary}`
+    );
+  }
+
+  function buildTourComponentText(diagram, node) {
+    const idx = diagram.nodes.findIndex((n) => n.id === node.id);
+    const meta = getComponentMetaText(diagram, node);
+    const neighborCount = diagram.edges.filter(
+      (e) => e.source === node.id || e.target === node.id
+    ).length;
+    return (
+      `Component ${idx + 1} of ${diagram.nodes.length}: ${node.label}. ` +
+      `${meta}. ${node.description} ` +
+      `It has ${neighborCount} direct connection${neighborCount === 1 ? "" : "s"} in this diagram.`
+    );
+  }
+
+  function buildTourConnectionsText(diagram, node) {
+    const nodeMap = getNodeMap(diagram);
+    if (diagram.domain === "physics_circuit") {
+      const neighbors = [];
+      for (const edge of diagram.edges) {
+        if (edge.source === node.id && nodeMap.has(edge.target)) {
+          neighbors.push(nodeMap.get(edge.target).label);
+        } else if (edge.target === node.id && nodeMap.has(edge.source)) {
+          neighbors.push(nodeMap.get(edge.source).label);
+        }
+      }
+      if (neighbors.length === 0) {
+        return `${node.label} currently has no wire connections in this diagram.`;
+      }
+      return (
+        `${node.label} has ${neighbors.length} direct wire connection${neighbors.length === 1 ? "" : "s"}: ` +
+        `connected to ${neighbors.join(" and ")}.`
+      );
+    }
+
+    const incoming = diagram.edges
+      .filter((e) => e.target === node.id && nodeMap.has(e.source))
+      .map((e) => nodeMap.get(e.source).label);
+    const outgoing = diagram.edges
+      .filter((e) => e.source === node.id && nodeMap.has(e.target))
+      .map((e) => nodeMap.get(e.target).label);
+
+    const inPart =
+      incoming.length > 0
+        ? `Receives energy from ${incoming.join(", ")} (food to consumer).`
+        : "Receives energy from no other organism in this diagram.";
+    const outPart =
+      outgoing.length > 0
+        ? `Provides energy to ${outgoing.join(", ")} (food to consumer).`
+        : "Provides energy to no other organism in this diagram.";
+
+    return `Connections for ${node.label}: ${inPart} ${outPart}`;
+  }
+
+  function updateTourDisplay(step, shouldAnnounce = false) {
+    const diagram = state.currentDiagram;
+    if (!diagram) return;
+    state.tourStep = step;
+
+    const nodeMap = getNodeMap(diagram);
+    const selectedNode = nodeMap.get(state.selectedNodeId) || diagram.nodes[0];
+
+    if (step === "overview" || !selectedNode) {
+      state.tourText = buildTourOverviewText(diagram);
+      dom.tourStepBadge.textContent = "Overview";
+    } else if (step === "connections") {
+      state.tourText = buildTourConnectionsText(diagram, selectedNode);
+      dom.tourStepBadge.textContent = `Connections: ${selectedNode.label}`;
+    } else {
+      const idx = diagram.nodes.findIndex((n) => n.id === selectedNode.id);
+      state.tourText = buildTourComponentText(diagram, selectedNode);
+      dom.tourStepBadge.textContent = `Component ${idx + 1} of ${diagram.nodes.length}: ${selectedNode.label}`;
+    }
+
+    dom.tourTextOutput.textContent = state.tourText;
+    updateTtsControls();
+    if (shouldAnnounce) {
+      announce(state.tourText);
+    }
+  }
+
+  function stepTourComponent(delta) {
+    const diagram = state.currentDiagram;
+    if (!diagram || diagram.nodes.length === 0) return;
+    stopTts();
+    const curIdx = diagram.nodes.findIndex((n) => n.id === state.selectedNodeId);
+    const startIdx = curIdx >= 0 ? curIdx : 0;
+    const nextIdx = (startIdx + delta + diagram.nodes.length) % diagram.nodes.length;
+    const nextNode = diagram.nodes[nextIdx];
+
+    state.selectedNodeId = nextNode.id;
+    renderComponentList(diagram);
+    renderSelectedDetail(diagram);
+    renderExperimentControls(diagram);
+    renderSemanticSvgGraph(diagram);
+    updateTourDisplay("component", true);
+  }
+
+  function computeBiologyLayers(diagram) {
+    // Topological layering from directed energy_to edges (pure graph structure).
+    const incomingCount = new Map();
+    const outgoingMap = new Map();
+    for (const n of diagram.nodes) {
+      incomingCount.set(n.id, 0);
+      outgoingMap.set(n.id, []);
+    }
+    for (const e of diagram.edges) {
+      if (incomingCount.has(e.target) && outgoingMap.has(e.source)) {
+        incomingCount.set(e.target, incomingCount.get(e.target) + 1);
+        outgoingMap.get(e.source).push(e.target);
+      }
+    }
+
+    const level = new Map();
+    const queue = [];
+    for (const n of diagram.nodes) {
+      if (incomingCount.get(n.id) === 0) {
+        level.set(n.id, 0);
+        queue.push(n.id);
+      }
+    }
+    let guard = 0;
+    while (queue.length > 0 && guard < 100) {
+      guard += 1;
+      const cur = queue.shift();
+      const curLvl = level.get(cur) || 0;
+      for (const nxt of outgoingMap.get(cur) || []) {
+        const nextLvl = Math.max(level.get(nxt) || 0, curLvl + 1);
+        level.set(nxt, nextLvl);
+        queue.push(nxt);
+      }
+    }
+    for (const n of diagram.nodes) {
+      if (!level.has(n.id)) level.set(n.id, 0);
+    }
+
+    const tiers = new Map();
+    for (const n of diagram.nodes) {
+      const l = level.get(n.id);
+      if (!tiers.has(l)) tiers.set(l, []);
+      tiers.get(l).push(n);
+    }
+
+    const sortedLevels = Array.from(tiers.keys()).sort((a, b) => a - b);
+    const colCount = Math.max(sortedLevels.length, 1);
+    const positions = new Map();
+    const width = 640;
+    const height = 300;
+    const padX = 95;
+    const padY = 55;
+
+    sortedLevels.forEach((lvl, colIdx) => {
+      const group = tiers.get(lvl);
+      const x =
+        colCount === 1
+          ? width / 2
+          : padX + (colIdx * (width - 2 * padX)) / (colCount - 1);
+      group.forEach((node, rowIdx) => {
+        const y =
+          group.length === 1
+            ? height / 2
+            : padY + (rowIdx * (height - 2 * padY)) / (group.length - 1);
+        positions.set(node.id, { x, y });
+      });
+    });
+    return positions;
+  }
+
+  function computePhysicsPositions(diagram) {
+    const seq =
+      (diagram.domain_model && diagram.domain_model.sequence) ||
+      diagram.nodes.map((n) => n.id);
+    const positions = new Map();
+    if (seq.length === 3) {
+      const coords = [
+        { x: 140, y: 155 },
+        { x: 320, y: 65 },
+        { x: 500, y: 155 },
+      ];
+      seq.forEach((id, i) => positions.set(id, coords[i]));
+    } else {
+      const coords = [
+        { x: 140, y: 85 },
+        { x: 500, y: 85 },
+        { x: 500, y: 215 },
+        { x: 140, y: 215 },
+      ];
+      seq.forEach((id, i) => positions.set(id, coords[i % coords.length]));
+    }
+    return positions;
+  }
+
+  function updateSvgComparisonBadge(diagram) {
+    if (!state.baselineDiagram) {
+      dom.svgStateComparison.textContent = "Baseline state";
+      return;
+    }
+
+    if (diagram.domain === "physics_circuit") {
+      const baseSw = Object.values(
+        state.baselineDiagram.domain_model.switch_states || {}
+      )[0];
+      const curSw = Object.values(diagram.domain_model.switch_states || {})[0];
+      const bulbsOn = state.backendState && state.backendState.bulbs_on;
+      if (baseSw === curSw) {
+        dom.svgStateComparison.textContent = `Baseline state · Switch ${curSw} · Bulb ${bulbsOn ? "ON" : "OFF"}`;
+      } else {
+        dom.svgStateComparison.textContent = `Experiment changed · Baseline: ${baseSw} -> Current: ${curSw} (Bulb ${bulbsOn ? "ON" : "OFF"})`;
+      }
+      return;
+    }
+
+    const baseNodes = state.baselineDiagram.nodes.length;
+    const baseEdges = state.baselineDiagram.edges.length;
+    const curNodes = diagram.nodes.length;
+    const curEdges = diagram.edges.length;
+    if (baseNodes === curNodes && baseEdges === curEdges) {
+      dom.svgStateComparison.textContent = `Baseline state · ${curNodes} organisms, ${curEdges} relationships`;
+    } else {
+      dom.svgStateComparison.textContent = `Experiment changed · Baseline: ${baseNodes} organisms / ${baseEdges} edges -> Current: ${curNodes} / ${curEdges}`;
+    }
+  }
+
+  function renderSemanticSvgGraph(diagram) {
+    const svg = dom.semanticGraphSvg;
+    if (!svg || !diagram) return;
+    svg.textContent = "";
+    updateSvgComparisonBadge(diagram);
+
+    // Arrowhead markers for directed Biology edges
+    const defs = createSvgEl("defs");
+    const markerNormal = createSvgEl("marker", {
+      id: "arrow-head",
+      viewBox: "0 0 10 10",
+      refX: "9",
+      refY: "5",
+      markerWidth: "7",
+      markerHeight: "7",
+      orient: "auto-start-reverse",
+    });
+    markerNormal.appendChild(createSvgEl("path", { d: "M 0 0 L 10 5 L 0 10 z", fill: "#64748b" }));
+    defs.appendChild(markerNormal);
+
+    const markerHighlight = createSvgEl("marker", {
+      id: "arrow-head-highlight",
+      viewBox: "0 0 10 10",
+      refX: "9",
+      refY: "5",
+      markerWidth: "7",
+      markerHeight: "7",
+      orient: "auto-start-reverse",
+    });
+    markerHighlight.appendChild(
+      createSvgEl("path", { d: "M 0 0 L 10 5 L 0 10 z", fill: "#1d4ed8" })
+    );
+    defs.appendChild(markerHighlight);
+    svg.appendChild(defs);
+
+    const positions =
+      diagram.domain === "physics_circuit"
+        ? computePhysicsPositions(diagram)
+        : computeBiologyLayers(diagram);
+
+    const connectedToSelected = new Set();
+    for (const e of diagram.edges) {
+      if (e.source === state.selectedNodeId) connectedToSelected.add(e.target);
+      if (e.target === state.selectedNodeId) connectedToSelected.add(e.source);
+    }
+
+    const isOpenCircuit =
+      diagram.domain === "physics_circuit" &&
+      state.backendState &&
+      state.backendState.bulbs_on === false;
+
+    // Render edges first
+    for (const edge of diagram.edges) {
+      const p1 = positions.get(edge.source);
+      const p2 = positions.get(edge.target);
+      if (!p1 || !p2) continue;
+
+      const isHighlighted =
+        edge.source === state.selectedNodeId || edge.target === state.selectedNodeId;
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      const dist = Math.hypot(dx, dy) || 1;
+      const padStart = 58;
+      const padEnd = diagram.domain === "biology_food_web" ? 64 : 58;
+      const x1 = p1.x + (dx / dist) * Math.min(padStart, dist / 3);
+      const y1 = p1.y + (dy / dist) * Math.min(padStart, dist / 3);
+      const x2 = p2.x - (dx / dist) * Math.min(padEnd, dist / 3);
+      const y2 = p2.y - (dy / dist) * Math.min(padEnd, dist / 3);
+
+      const lineClasses = ["svg-edge"];
+      if (isHighlighted) lineClasses.push("svg-edge-highlight");
+      if (isOpenCircuit) lineClasses.push("svg-edge-open");
+
+      const lineAttrs = {
+        x1: x1.toFixed(1),
+        y1: y1.toFixed(1),
+        x2: x2.toFixed(1),
+        y2: y2.toFixed(1),
+        class: lineClasses.join(" "),
+      };
+      if (diagram.domain === "biology_food_web") {
+        lineAttrs["marker-end"] = isHighlighted
+          ? "url(#arrow-head-highlight)"
+          : "url(#arrow-head)";
+      }
+      svg.appendChild(createSvgEl("line", lineAttrs));
+    }
+
+    // Render nodes
+    for (const node of diagram.nodes) {
+      const pos = positions.get(node.id);
+      if (!pos) continue;
+
+      const g = createSvgEl("g", {
+        class: "svg-node",
+        transform: `translate(${pos.x}, ${pos.y})`,
+      });
+
+      const classes = ["svg-node"];
+      if (node.id === state.selectedNodeId) classes.push("svg-node-selected");
+      else if (connectedToSelected.has(node.id)) classes.push("svg-node-connected");
+
+      let subLabel = node.kind.toUpperCase();
+      if (diagram.domain === "physics_circuit") {
+        if (node.kind === "switch") {
+          subLabel = `SWITCH · ${getSwitchDisplayState(diagram, node.id).toUpperCase()}`;
+        } else if (node.kind === "bulb") {
+          const bState = getBulbDisplayState(node.id);
+          subLabel = `BULB · ${bState.toUpperCase()}`;
+          if (bState === "on") classes.push("svg-node-bulb-on");
+        } else {
+          subLabel = "BATTERY (+ / -)";
+        }
+      } else {
+        subLabel = "ORGANISM";
+      }
+      g.setAttribute("class", classes.join(" "));
+
+      if (node.kind === "bulb") {
+        g.appendChild(
+          createSvgEl("ellipse", {
+            cx: 0,
+            cy: 0,
+            rx: 56,
+            ry: 32,
+            class: "svg-node-shape",
+          })
+        );
+      } else {
+        g.appendChild(
+          createSvgEl("rect", {
+            x: -60,
+            y: -28,
+            width: 120,
+            height: 56,
+            rx: node.kind === "organism" ? 20 : 8,
+            class: "svg-node-shape",
+          })
+        );
+      }
+
+      const titleText = createSvgEl("text", { x: 0, y: -3, class: "svg-node-title" });
+      titleText.textContent = node.label;
+      g.appendChild(titleText);
+
+      const subText = createSvgEl("text", { x: 0, y: 15, class: "svg-node-sub" });
+      subText.textContent = subLabel;
+      g.appendChild(subText);
+
+      g.addEventListener("click", () => selectNode(node.id, "move_to_detail"));
+      svg.appendChild(g);
+    }
   }
 
   // --- Shared Explorer (Fixtures & Confirmed AI Diagrams) ---
@@ -1726,6 +2242,8 @@
 
     renderStats(diagram);
     renderLearningLab();
+    renderSemanticSvgGraph(diagram);
+    updateTourDisplay(state.tourStep || "overview", false);
     renderFeedback();
     renderComponentList(
       diagram,
@@ -1752,6 +2270,8 @@
     );
     renderSelectedDetail(state.currentDiagram);
     renderExperimentControls(state.currentDiagram);
+    renderSemanticSvgGraph(state.currentDiagram);
+    updateTourDisplay("component", false);
 
     const meta = getComponentMetaText(state.currentDiagram, node);
     announce(`Selected ${node.label}. ${meta}. ${node.description}`);
@@ -1776,6 +2296,8 @@
       state.selectedNodeId = diagram.nodes.length > 0 ? diagram.nodes[0].id : null;
       state.lastSimulation = null;
       state.explorerMode = "explore";
+      state.tourStep = "overview";
+      stopTts();
       resetLabState();
       await loadLabChallengesForBaseline();
       state.isBusy = false;
@@ -1864,6 +2386,7 @@
 
   function showWelcome() {
     clearError();
+    stopTts();
     state.reviewDraft = null;
     state.reviewValidation = null;
     showSection("welcome");
@@ -1895,6 +2418,30 @@
     dom.labSkipBtn.addEventListener("click", () => handleLabAdvance(true));
     dom.labNextBtn.addEventListener("click", () => handleLabAdvance(false));
     dom.labResetBtn.addEventListener("click", handleLabResetSession);
+
+    dom.tourOverviewBtn.addEventListener("click", () => {
+      stopTts();
+      updateTourDisplay("overview", true);
+    });
+    dom.tourBackOverviewBtn.addEventListener("click", () => {
+      stopTts();
+      updateTourDisplay("overview", true);
+    });
+    dom.tourPrevBtn.addEventListener("click", () => stepTourComponent(-1));
+    dom.tourNextBtn.addEventListener("click", () => stepTourComponent(1));
+    dom.tourConnectionsBtn.addEventListener("click", () => {
+      stopTts();
+      updateTourDisplay("connections", true);
+    });
+    dom.tourRepeatBtn.addEventListener("click", () => {
+      if (state.tourText) {
+        announce(state.tourText);
+      }
+    });
+    dom.tourTtsSpeakBtn.addEventListener("click", speakCurrentTourText);
+    dom.tourTtsPauseBtn.addEventListener("click", togglePauseTts);
+    dom.tourTtsStopBtn.addEventListener("click", stopTts);
+    updateTtsControls();
 
     dom.analyzeForm.addEventListener("submit", handleAnalyzeSubmit);
     dom.reviewTitleInput.addEventListener("input", () => {

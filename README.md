@@ -6,7 +6,7 @@ SenseGraph is an accessible interactive STEM diagram learning prototype designed
 
 - **Primary hackathon track:** Education
 - **Related social impact:** Community Impact
-- **Current status:** Phases 1–5 implemented and verified with automated tests (Core Backend, Accessible Frontend, Gemini Vision & Human Review, Stability/Security Audit, and Guided Learning Lab).
+- **Current status:** Phases 1–6 implemented and verified with automated tests (Core Backend, Accessible Frontend, Gemini Vision & Human Review, Stability/Security Audit, Guided Learning Lab, and Interactive SVG Graph + Text-First Guided Tour).
 
 ---
 
@@ -44,6 +44,9 @@ SenseGraph is an accessible interactive STEM diagram learning prototype designed
 - **Two Learning Modes in the Shared Explorer:**
   - **Explore Freely:** Inspect components, follow direct connections, toggle switches or remove organisms, and reset at any time.
 - **Guided Learning Lab (Predict → Experiment → Explain):** Structured, session-only challenges with native radio/checkbox prediction controls, deterministic Python engine verification, evidence-based explanations, linked component jump buttons, retry, skip, and session reset (works for both pre-annotated fixtures and confirmed AI diagrams; zero LLM grading).
+- **Two Equivalent Explorers (Visual + Text/Audio-First):**
+  - **Interactive Semantic Graph (SVG):** Lightweight responsive SVG generated directly from the confirmed graph (component shapes/wire loop for Physics; layered organisms and directional energy arrows for Biology), synchronized with selection, switch toggles, organism removals, reset, and AI confirmation, and marked `aria-hidden="true"` so it never creates duplicate keyboard tab stops.
+  - **Text-First Guided Tour + Optional Voice:** Native keyboard controls (`Overview`, `Previous component`, `Next component`, `Connections`, `Back to overview`, `Repeat explanation`) grounded strictly in confirmed graph data (never inventing spatial positions), plus optional user-initiated browser `speechSynthesis` with pause/stop and speech-rate controls (off by default, never autoplays).
 - **Keyboard-first & screen-reader-oriented UI:**
   - Semantic landmarks (`<header>`, `<main>`, `<footer>`, hierarchical `<h1>`–`<h4>`), skip-to-content link, and high-contrast visible focus indicators.
   - Native `<button>` controls and accessible `<label>`-bound form inputs (no keyboard traps).

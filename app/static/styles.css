@@ -702,6 +702,145 @@ h4 {
   margin-top: 0.75rem;
 }
 
+/* Phase 6: Guided Tour & Optional TTS */
+.tour-panel {
+  margin-bottom: 1.25rem;
+  border-left: 5px solid var(--accent-primary);
+}
+
+.tour-output {
+  margin: 0 0 1rem;
+  padding: 0.9rem 1.1rem;
+  background-color: var(--bg-callout);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  font-size: 1.02rem;
+  color: var(--text-primary);
+}
+
+.tour-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.tts-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.tts-label {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.tts-rate-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.tts-rate-group label {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.tts-rate-group select {
+  min-height: 38px;
+  padding: 0.25rem 0.6rem;
+  font-family: inherit;
+  font-size: 0.92rem;
+  color: var(--text-primary);
+  background-color: var(--bg-surface);
+  border: 2px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+
+/* Phase 6: Interactive Semantic SVG Graph */
+.svg-graph-panel {
+  margin-bottom: 1.25rem;
+}
+
+.svg-graph-frame {
+  width: 100%;
+  background-color: #ffffff;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem;
+  overflow-x: auto;
+}
+
+.semantic-graph-svg {
+  width: 100%;
+  height: auto;
+  max-height: 320px;
+  display: block;
+}
+
+.svg-edge {
+  stroke: #64748b;
+  stroke-width: 3;
+  fill: none;
+}
+
+.svg-edge-highlight {
+  stroke: #1d4ed8;
+  stroke-width: 4.5;
+}
+
+.svg-edge-open {
+  stroke-dasharray: 8 6;
+}
+
+.svg-node {
+  cursor: pointer;
+}
+
+.svg-node-shape {
+  fill: #f8fafc;
+  stroke: #334155;
+  stroke-width: 2.5;
+}
+
+.svg-node-selected .svg-node-shape {
+  fill: #dbeafe;
+  stroke: #1d4ed8;
+  stroke-width: 4;
+}
+
+.svg-node-connected .svg-node-shape {
+  fill: #ecfdf5;
+  stroke: #0f766e;
+  stroke-width: 3;
+}
+
+.svg-node-bulb-on .svg-node-shape {
+  fill: #fef3c7;
+  stroke: #b45309;
+  stroke-width: 3.5;
+}
+
+.svg-node-title {
+  font-size: 14px;
+  font-weight: 700;
+  fill: #0f172a;
+  text-anchor: middle;
+}
+
+.svg-node-sub {
+  font-size: 11px;
+  font-weight: 700;
+  fill: #334155;
+  text-anchor: middle;
+}
+
 .explorer-title-group {
   display: flex;
   flex-wrap: wrap;

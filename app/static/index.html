@@ -365,6 +365,89 @@
         </dl>
       </section>
 
+      <!-- Phase 6: Text-First Guided Tour & Optional User-Initiated Audio -->
+      <section class="panel tour-panel" aria-labelledby="tour-heading">
+        <div class="lab-header">
+          <div>
+            <p class="eyebrow">Text-First Orientation</p>
+            <h3 id="tour-heading">Guided Tour</h3>
+          </div>
+          <span id="tour-step-badge" class="badge badge-neutral">Overview</span>
+        </div>
+
+        <p id="tour-text-output" class="tour-output">
+          Choose Overview, Next component, or Connections to step through the verified graph structure in plain language.
+        </p>
+
+        <div class="tour-controls" role="group" aria-label="Guided tour navigation">
+          <button type="button" id="tour-overview-btn" class="btn btn-secondary btn-sm">
+            Overview
+          </button>
+          <button type="button" id="tour-prev-btn" class="btn btn-secondary btn-sm">
+            Previous component
+          </button>
+          <button type="button" id="tour-next-btn" class="btn btn-primary btn-sm">
+            Next component
+          </button>
+          <button type="button" id="tour-connections-btn" class="btn btn-secondary btn-sm">
+            Connections
+          </button>
+          <button type="button" id="tour-back-overview-btn" class="btn btn-ghost btn-sm">
+            Back to overview
+          </button>
+          <button type="button" id="tour-repeat-btn" class="btn btn-ghost btn-sm">
+            Repeat explanation
+          </button>
+        </div>
+
+        <div class="tts-bar" aria-label="Optional browser text-to-speech controls">
+          <span class="tts-label">Optional voice (off by default — never autoplays):</span>
+          <button type="button" id="tour-tts-speak-btn" class="btn btn-secondary btn-sm">
+            Speak explanation
+          </button>
+          <button type="button" id="tour-tts-pause-btn" class="btn btn-ghost btn-sm" disabled>
+            Pause
+          </button>
+          <button type="button" id="tour-tts-stop-btn" class="btn btn-ghost btn-sm" disabled>
+            Stop
+          </button>
+          <div class="tts-rate-group">
+            <label for="tour-tts-rate">Speech rate</label>
+            <select id="tour-tts-rate">
+              <option value="0.8">0.8x (Slower)</option>
+              <option value="1" selected>1.0x (Normal)</option>
+              <option value="1.25">1.25x (Faster)</option>
+              <option value="1.5">1.5x (Fast)</option>
+            </select>
+          </div>
+          <span id="tour-tts-status" class="field-hint"></span>
+        </div>
+      </section>
+
+      <!-- Phase 6: Interactive Semantic Graph (Visual Supplement) -->
+      <section class="panel svg-graph-panel" aria-labelledby="svg-graph-heading">
+        <div class="lab-header">
+          <div>
+            <h3 id="svg-graph-heading">Interactive Semantic Graph (Visual Supplement)</h3>
+            <p class="panel-hint">
+              Generated directly from the confirmed semantic graph. Sighted users may click
+              any node to select it; all information and controls are fully available in the
+              text explorer and Guided Tour.
+            </p>
+          </div>
+          <p id="svg-state-comparison" class="badge badge-neutral">Baseline state</p>
+        </div>
+        <div class="svg-graph-frame">
+          <svg
+            id="semantic-graph-svg"
+            class="semantic-graph-svg"
+            viewBox="0 0 640 300"
+            aria-hidden="true"
+            focusable="false"
+          ></svg>
+        </div>
+      </section>
+
       <!-- Experiment Feedback Banner -->
       <section
         id="feedback-panel"

@@ -208,3 +208,35 @@ def test_frontend_index_and_static_assets_served_with_accessibility_landmarks() 
             img_resp = client.get(f"/fixtures/images/{img_name}")
             assert img_resp.status_code == 200
             assert img_resp.headers["content-type"].startswith("image/")
+
+
+def test_frontend_includes_phase6_visual_svg_and_guided_tour_controls() -> None:
+    with _make_client() as client:
+        html = client.get("/").text
+        # SVG is supplementary and hidden from assistive technology to avoid duplicate tab stops.
+        assert 'id="semantic-graph-svg"' in html
+        assert 'aria-hidden="true"' in html
+        assert 'focusable="false"' in html
+
+        # Text-first Guided Tour native buttons.
+        for control_id in (
+            "tour-overview-btn",
+            "tour-prev-btn",
+            "tour-next-btn",
+            "tour-connections-btn",
+            "tour-back-overview-btn",
+            "tour-repeat-btn",
+            "tour-tts-speak-btn",
+            "tour-tts-pause-btn",
+            "tour-tts-stop-btn",
+            "tour-tts-rate",
+        ):
+            assert f'id="{control_id}"' in html
+
+        css = client.get("/static/styles.css").text
+        assert "prefers-reduced-motion" in css
+        assert ".semantic-graph-svg" in css
+
+        js = client.get("/static/app.js").text
+        assert "renderSemanticSvgGraph" in js
+        assert "speechSynthesis" in js
