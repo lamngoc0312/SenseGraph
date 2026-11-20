@@ -5,7 +5,7 @@
 - **Hackathon:** STEM2Connect AI Hackathon 2026
 - **Primary Track:** Education · **Related Social Impact:** Community Impact
 - **Stack:** Python 3.11–3.13, FastAPI, Pydantic v2, Vanilla HTML5/CSS/JS, Google Gemini (`google-genai`), Pytest
-- **Release Candidate:** `v0.10.0-dev` (Phases 1–10 complete: Physics, Biology, CS Flowchart, Mathematics XY Plot, and Chemistry Molecular Structure)
+- **Release Candidate:** `v0.11.0-dev` (Phases 1–11 complete: Physics, Biology, CS Flowchart, Mathematics XY Plot, Chemistry Molecule, and Evidence-Grounded STEM Tutor)
 
 ---
 

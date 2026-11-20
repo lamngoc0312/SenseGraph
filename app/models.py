@@ -300,6 +300,41 @@ class SmilesParseRequest(BaseModel):
     title: str | None = None
 
 
+# --- Phase 11: Evidence-Grounded STEM Tutor contracts ---
+
+
+TutorResponseMode = Literal["hint", "explanation", "direct"]
+
+
+class TutorToolCallRecord(BaseModel):
+    tool_name: str
+    arguments: dict[str, Any] = Field(default_factory=dict)
+    summary: str
+    cited_node_ids: list[str] = Field(default_factory=list)
+    cited_edge_ids: list[str] = Field(default_factory=list)
+
+
+class TutorAskRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    diagram: DiagramDocument
+    question: str = Field(..., min_length=1, max_length=500)
+    response_mode: TutorResponseMode = "explanation"
+    learn_mode: bool = False
+
+
+class TutorAskResponse(BaseModel):
+    grounded: bool
+    abstained: bool
+    provenance: Literal["deterministic_tools", "ai_grounded_narrator"]
+    response_mode: TutorResponseMode
+    answer: str
+    follow_up: str | None = None
+    cited_node_ids: list[str] = Field(default_factory=list)
+    cited_edge_ids: list[str] = Field(default_factory=list)
+    tool_calls: list[TutorToolCallRecord] = Field(default_factory=list)
+
+
 class MathIntercept(BaseModel):
     axis: Literal["x", "y"]
     x: float

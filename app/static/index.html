@@ -627,6 +627,55 @@
           </figure>
         </section>
       </div>
+
+      <!-- Phase 11: Evidence-Grounded STEM Tutor -->
+      <section class="panel tutor-panel" aria-labelledby="tutor-heading">
+        <div class="lab-header">
+          <div>
+            <p class="eyebrow">Tool-Backed · Cited Evidence Only</p>
+            <h3 id="tutor-heading">Evidence-Grounded STEM Tutor</h3>
+          </div>
+          <span class="badge badge-confirmed">Grounded in confirmed graph</span>
+        </div>
+        <p class="panel-hint">
+          Ask about components, connections, paths, or verified simulation outcomes.
+          Questions outside this diagram receive an honest &ldquo;Not established by this diagram.&rdquo;
+        </p>
+
+        <form id="tutor-form" class="analyze-form" novalidate>
+          <div class="form-row">
+            <div class="form-field">
+              <label for="tutor-question-input">Your question about this diagram</label>
+              <input
+                type="text"
+                id="tutor-question-input"
+                placeholder="e.g., What happens if I close Switch S1? or What does Rabbit eat?"
+                maxlength="500"
+              />
+            </div>
+            <div class="form-field">
+              <label for="tutor-mode-select">Response style</label>
+              <select id="tutor-mode-select">
+                <option value="hint">Hint (predict first in Learning Lab)</option>
+                <option value="explanation" selected>Full explanation with tool evidence</option>
+                <option value="direct">Direct verified answer</option>
+              </select>
+            </div>
+          </div>
+          <div class="tour-controls">
+            <button type="submit" id="tutor-ask-btn" class="btn btn-primary btn-sm">
+              Ask Tutor
+            </button>
+            <button type="button" id="tutor-clear-btn" class="btn btn-ghost btn-sm">
+              Clear history
+            </button>
+          </div>
+        </form>
+
+        <ol id="tutor-history-list" class="tutor-history-list" aria-label="Tutor Q&A history">
+          <!-- Populated dynamically with textContent -->
+        </ol>
+      </section>
     </section>
   </main>
 

@@ -85,6 +85,8 @@
     // Phase 9: Mathematics Plot State
     mathAnalysis: null,
     mathPointIdx: 0,
+    // Phase 11: Evidence-Grounded Tutor history (session-only)
+    tutorHistory: [],
     isBusy: false,
   };
 
@@ -222,6 +224,12 @@
     chemControlsPanel: document.getElementById("chem-controls-panel"),
     chemSmilesInput: document.getElementById("chem-smiles-input"),
     chemParseBtn: document.getElementById("chem-parse-btn"),
+    tutorForm: document.getElementById("tutor-form"),
+    tutorQuestionInput: document.getElementById("tutor-question-input"),
+    tutorModeSelect: document.getElementById("tutor-mode-select"),
+    tutorAskBtn: document.getElementById("tutor-ask-btn"),
+    tutorClearBtn: document.getElementById("tutor-clear-btn"),
+    tutorHistoryList: document.getElementById("tutor-history-list"),
     experimentLimitation: document.getElementById("experiment-limitation"),
 
     allRelationsList: document.getElementById("all-relations-list"),
@@ -2834,6 +2842,89 @@
     }
   }
 
+  // --- Phase 11: Evidence-Grounded STEM Tutor ---
+
+  function renderTutorHistory() {
+    dom.tutorHistoryList.textContent = "";
+    for (const item of state.tutorHistory) {
+      const li = document.createElement("li");
+      li.className = item.abstained ? "tutor-entry is-abstained" : "tutor-entry";
+
+      const qEl = document.createElement("p");
+      qEl.className = "tutor-entry-q";
+      qEl.textContent = `Q: ${item.question}`;
+      li.appendChild(qEl);
+
+      const aEl = document.createElement("p");
+      aEl.className = "tutor-entry-a";
+      aEl.textContent = `A: ${item.answer}`;
+      li.appendChild(aEl);
+
+      if (item.follow_up) {
+        const fEl = document.createElement("p");
+        fEl.className = "tutor-entry-meta";
+        fEl.textContent = `Follow-up: ${item.follow_up}`;
+        li.appendChild(fEl);
+      }
+
+      const metaEl = document.createElement("p");
+      metaEl.className = "tutor-entry-meta";
+      const provText =
+        item.provenance === "ai_grounded_narrator"
+          ? "Grounded AI narrator"
+          : "Deterministic graph tools (no AI)";
+      const cites = [
+        ...(item.cited_node_ids || []).map((id) => `node:${id}`),
+        ...(item.cited_edge_ids || []).map((id) => `edge:${id}`),
+      ];
+      metaEl.textContent =
+        `Source: ${provText}` +
+        (cites.length > 0 ? ` · Citations: ${cites.join(", ")}` : "");
+      li.appendChild(metaEl);
+
+      dom.tutorHistoryList.appendChild(li);
+    }
+  }
+
+  async function handleTutorSubmit(event) {
+    event.preventDefault();
+    if (!state.currentDiagram || state.isBusy) return;
+    clearError();
+
+    const question = dom.tutorQuestionInput.value.trim();
+    if (!question) {
+      showError("Enter a question about the confirmed diagram.");
+      dom.tutorQuestionInput.focus();
+      return;
+    }
+
+    const responseMode = dom.tutorModeSelect.value || "explanation";
+    const learnMode = state.explorerMode === "lab";
+
+    dom.tutorAskBtn.disabled = true;
+    try {
+      const reply = await apiRequest("/api/tutor/ask", {
+        method: "POST",
+        body: JSON.stringify({
+          diagram: state.currentDiagram,
+          question,
+          response_mode: responseMode,
+          learn_mode: learnMode,
+        }),
+      });
+      state.tutorHistory.unshift({ question, ...reply });
+      dom.tutorQuestionInput.value = "";
+      dom.tutorAskBtn.disabled = false;
+      renderTutorHistory();
+      announce(
+        reply.follow_up ? `${reply.answer} ${reply.follow_up}` : reply.answer
+      );
+    } catch (err) {
+      dom.tutorAskBtn.disabled = false;
+      showError(`Tutor error: ${err.message}`);
+    }
+  }
+
   async function loadExample(exampleId) {
     clearError();
     state.isBusy = true;
@@ -2978,6 +3069,13 @@
     dom.switchPhysicsBtn.addEventListener("click", () => loadExample("physics_series"));
     dom.switchBiologyBtn.addEventListener("click", () => loadExample("biology_food_web"));
     dom.switchCsBtn.addEventListener("click", () => loadExample("cs_flowchart"));
+    dom.tutorForm.addEventListener("submit", handleTutorSubmit);
+    dom.tutorClearBtn.addEventListener("click", () => {
+      state.tutorHistory = [];
+      renderTutorHistory();
+      dom.tutorQuestionInput.focus();
+      announce("Cleared tutor history.");
+    });
     dom.switchMathBtn.addEventListener("click", () => loadExample("math_plot"));
     dom.switchChemBtn.addEventListener("click", () => loadExample("chemistry_molecule"));
     dom.chemParseBtn.addEventListener("click", async () => {

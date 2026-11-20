@@ -38,6 +38,8 @@ from app.models import (
     SimulationRequest,
     SimulationResponse,
     SmilesParseRequest,
+    TutorAskRequest,
+    TutorAskResponse,
     ValidationResponse,
 )
 from app.services.ai_vision import (
@@ -51,6 +53,7 @@ from app.services.ai_vision import (
 from app.services.description import describe_diagram
 from app.services.fixtures import FixtureRepository
 from app.services.learning import evaluate_challenge, generate_challenges
+from app.services.tutor import TutorNarrator, answer_grounded_question
 from app.services.validators import validate_diagram, validate_raw_diagram
 from app.settings import PROJECT_ROOT, SUPPORTED_DOMAINS, Settings, load_settings
 
@@ -87,6 +90,7 @@ def _error_response(
 def create_app(
     settings: Settings | None = None,
     vision_provider: VisionProvider | None = None,
+    tutor_narrator: TutorNarrator | None = None,
 ) -> FastAPI:
     """Create and configure the SenseGraph FastAPI application."""
     active_settings = settings or load_settings()
@@ -374,6 +378,16 @@ def create_app(
             diagram=request.diagram,
             challenge_id=request.challenge_id,
             selected_option_ids=request.selected_option_ids,
+        )
+
+    @application.post("/api/tutor/ask", response_model=TutorAskResponse)
+    def post_tutor_ask(request: TutorAskRequest) -> TutorAskResponse:
+        return answer_grounded_question(
+            diagram=request.diagram,
+            question=request.question,
+            response_mode=request.response_mode,
+            learn_mode=request.learn_mode,
+            narrator=tutor_narrator,
         )
 
     return application
