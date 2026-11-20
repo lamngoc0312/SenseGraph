@@ -15,11 +15,71 @@
         <a href="#main-content" class="brand-name" id="brand-home-link">SenseGraph</a>
         <p class="brand-tagline">Explore STEM diagrams beyond sight</p>
       </div>
-      <div class="header-status" aria-label="Application mode">
-        <span id="health-badge" class="badge badge-neutral">Checking backend status…</span>
+      <div class="header-controls">
+        <nav class="experience-switcher" aria-label="Interface experience">
+          <button
+            type="button"
+            id="exp-student-btn"
+            class="btn btn-primary btn-sm"
+            aria-pressed="true"
+          >
+            Student Experience
+          </button>
+          <button
+            type="button"
+            id="exp-educator-btn"
+            class="btn btn-secondary btn-sm"
+            aria-pressed="false"
+          >
+            Educator / Advanced
+          </button>
+        </nav>
+        <div class="header-status" aria-label="Application mode">
+          <span id="health-badge" class="badge badge-neutral">Checking backend status…</span>
+        </div>
       </div>
     </div>
   </header>
+
+  <!-- Phase 14: Optional Audio-First Guidance Bar (Off by default — never autoplays) -->
+  <section class="audio-bar" aria-label="Spoken guidance and listening options">
+    <div class="container audio-bar-inner">
+      <div class="audio-primary-controls">
+        <button type="button" id="audio-start-btn" class="btn btn-teal btn-sm" aria-pressed="false">
+          Start spoken guidance
+        </button>
+        <button type="button" id="audio-pause-btn" class="btn btn-secondary btn-sm" disabled>
+          Pause
+        </button>
+        <button type="button" id="audio-stop-btn" class="btn btn-ghost btn-sm" disabled>
+          Stop
+        </button>
+        <button type="button" id="audio-repeat-btn" class="btn btn-ghost btn-sm">
+          Repeat
+        </button>
+      </div>
+      <div class="audio-settings-controls">
+        <div class="tts-rate-group">
+          <label for="audio-rate-select">Speed</label>
+          <select id="audio-rate-select">
+            <option value="0.8">0.8x</option>
+            <option value="1" selected>1.0x</option>
+            <option value="1.25">1.25x</option>
+            <option value="1.5">1.5x</option>
+          </select>
+        </div>
+        <div class="tts-rate-group">
+          <label for="audio-voice-select">Voice</label>
+          <select id="audio-voice-select">
+            <option value="">Default browser voice</option>
+          </select>
+        </div>
+        <span id="audio-mode-status" class="audio-status-text">
+          Listening mode: Screen reader ready (browser voice off)
+        </span>
+      </div>
+    </div>
+  </section>
 
   <main id="main-content" class="container main-content" tabindex="-1">
     <!-- Polite live region for screen-reader announcements -->
@@ -39,8 +99,241 @@
       </button>
     </div>
 
-    <!-- Welcome, Pre-annotated Examples, & Analyze Your Own Diagram -->
-    <section id="welcome-section" class="welcome-section" aria-labelledby="welcome-heading">
+    <!-- Phase 14: Student Experience (Default, Step-by-Step, Calm Audio-First UI) -->
+    <section
+      id="student-section"
+      class="student-section"
+      aria-labelledby="student-stage-heading"
+    >
+      <nav class="student-stepper-nav" aria-label="Lesson progress">
+        <ol id="student-stepper" class="student-stepper">
+          <li data-step="welcome" aria-current="step">1. Welcome</li>
+          <li data-step="subjects">2. Subject</li>
+          <li data-step="explore">3. Explore</li>
+          <li data-step="experiment">4. Experiment</li>
+          <li data-step="summary">5. Understand</li>
+        </ol>
+      </nav>
+
+      <!-- Dismissible Help Box (Escape closes cleanly) -->
+      <aside
+        id="student-help-dialog"
+        class="student-help-panel"
+        role="region"
+        aria-labelledby="student-help-heading"
+        hidden
+      >
+        <div class="lab-header">
+          <h2 id="student-help-heading" tabindex="-1">How to Use SenseGraph</h2>
+          <button type="button" id="student-help-close-btn" class="btn btn-secondary btn-sm">
+            Close Help (Esc)
+          </button>
+        </div>
+        <ul class="changes-list">
+          <li>Use <strong>Tab</strong> and <strong>Shift+Tab</strong> to move between buttons, and <strong>Enter</strong> or <strong>Space</strong> to activate them.</li>
+          <li><strong>Screen reader users (NVDA / VoiceOver):</strong> Leave browser voice off to avoid duplicate speech. Every step is announced automatically.</li>
+          <li><strong>No screen reader?</strong> Click <strong>Start spoken guidance</strong> in the top audio bar for calm spoken narration.</li>
+          <li>Switch to <strong>Educator / Advanced</strong> anytime in the header to upload images, review AI proposals, or use the Evidence-Grounded Tutor.</li>
+        </ul>
+      </aside>
+
+      <!-- Stage 1: Welcome & Listening Choice -->
+      <section id="student-step-welcome" class="student-card" aria-labelledby="student-stage-heading">
+        <p class="eyebrow">Audio-First Accessible STEM Learning</p>
+        <h1 id="student-stage-heading" tabindex="-1">Learn STEM Diagrams Step by Step</h1>
+        <p class="student-lead">
+          Explore science diagrams one piece at a time, predict what will happen, and test
+          your ideas with verified Python simulations—entirely by keyboard or voice guidance.
+        </p>
+
+        <div class="listening-choice-grid" role="group" aria-label="Choose how you want to listen">
+          <div class="choice-tile">
+            <h2>Using a Screen Reader?</h2>
+            <p>
+              Keep browser voice off so NVDA or VoiceOver reads each step cleanly without
+              overlapping audio.
+            </p>
+            <button type="button" id="student-start-sr-btn" class="btn btn-primary btn-lg">
+              Start with Screen Reader
+            </button>
+          </div>
+          <div class="choice-tile">
+            <h2>Want Spoken Guidance?</h2>
+            <p>
+              Turn on built-in browser speech so SenseGraph narrates each step, component,
+              and experiment result aloud.
+            </p>
+            <button type="button" id="student-start-voice-btn" class="btn btn-teal btn-lg">
+              Start Spoken Guidance &amp; Begin
+            </button>
+          </div>
+        </div>
+
+        <div class="student-footer-actions">
+          <button type="button" id="student-welcome-help-btn" class="btn btn-ghost">
+            Help &amp; Keyboard Guide
+          </button>
+          <button type="button" id="student-to-educator-btn" class="btn btn-ghost">
+            Switch to Educator / Upload Mode
+          </button>
+        </div>
+      </section>
+
+      <!-- Stage 2: Subject Selection -->
+      <section id="student-step-subjects" class="student-card" aria-labelledby="student-subjects-heading" hidden>
+        <p class="eyebrow">Step 2 of 5 · Pick a Lesson</p>
+        <h2 id="student-subjects-heading" tabindex="-1">Choose a Subject</h2>
+        <p class="student-lead">
+          Every lesson below is a verified pre-annotated demo (no AI guessing).
+        </p>
+
+        <div id="student-subjects-grid" class="student-subjects-grid">
+          <!-- Populated dynamically from GET /api/examples -->
+        </div>
+
+        <div class="student-footer-actions">
+          <button type="button" id="student-subjects-back-btn" class="btn btn-secondary">
+            Back to Welcome
+          </button>
+          <button type="button" id="student-subjects-upload-btn" class="btn btn-ghost">
+            Upload &amp; Review an Image (Educator Mode)
+          </button>
+          <button type="button" id="student-subjects-help-btn" class="btn btn-ghost">
+            Help
+          </button>
+        </div>
+      </section>
+
+      <!-- Stage 3: Component-by-Component Exploration -->
+      <section id="student-step-explore" class="student-card" aria-labelledby="student-explore-heading" hidden>
+        <div class="student-lesson-header">
+          <div>
+            <p id="student-explore-kicker" class="eyebrow">Step 3 of 5 · Explore Components</p>
+            <h2 id="student-explore-heading" tabindex="-1">Lesson Title</h2>
+          </div>
+          <span id="student-explore-badge" class="badge badge-demo">
+            Pre-annotated demo — no AI used
+          </span>
+        </div>
+
+        <p id="student-explore-intro" class="student-lead"></p>
+
+        <div class="student-focus-box" aria-live="off">
+          <p id="student-comp-counter" class="badge badge-domain">Component 1 of 3</p>
+          <h3 id="student-comp-title" class="student-comp-title"></h3>
+          <p id="student-comp-role" class="selected-kind"></p>
+          <p id="student-comp-desc" class="summary-text"></p>
+          <p id="student-comp-connections" class="convention-note"></p>
+        </div>
+
+        <div class="student-nav-bar" role="group" aria-label="Component exploration controls">
+          <button type="button" id="student-prev-comp-btn" class="btn btn-secondary btn-lg">
+            Previous
+          </button>
+          <button type="button" id="student-next-comp-btn" class="btn btn-primary btn-lg">
+            Next Component
+          </button>
+          <button type="button" id="student-repeat-explore-btn" class="btn btn-ghost">
+            Repeat
+          </button>
+          <button type="button" id="student-go-experiment-btn" class="btn btn-teal btn-lg">
+            Predict &amp; Experiment →
+          </button>
+        </div>
+
+        <div class="student-visual-sync">
+          <p class="field-hint">
+            Visual companion (optional for sighted learners — full text above):
+          </p>
+          <svg
+            id="student-mini-svg"
+            class="semantic-graph-svg"
+            viewBox="0 0 640 300"
+            aria-hidden="true"
+            focusable="false"
+          ></svg>
+        </div>
+
+        <div class="student-footer-actions">
+          <button type="button" id="student-explore-back-btn" class="btn btn-secondary">
+            Back to Subjects
+          </button>
+          <button type="button" id="student-explore-help-btn" class="btn btn-ghost">
+            Help
+          </button>
+          <button type="button" id="student-explore-educator-btn" class="btn btn-ghost">
+            Open Full Educator View
+          </button>
+        </div>
+      </section>
+
+      <!-- Stage 4: Predict & Experiment -->
+      <section id="student-step-experiment" class="student-card" aria-labelledby="student-exp-heading" hidden>
+        <p class="eyebrow">Step 4 of 5 · Predict &amp; Experiment</p>
+        <h2 id="student-exp-heading" tabindex="-1">Make Your Prediction</h2>
+        <p id="student-exp-prompt" class="student-lead"></p>
+        <p id="student-exp-hint" class="panel-hint"></p>
+
+        <form id="student-exp-form" class="lab-form">
+          <fieldset class="lab-fieldset">
+            <legend id="student-exp-legend">Choose your prediction</legend>
+            <div id="student-exp-options" class="lab-options-list"></div>
+          </fieldset>
+
+          <div class="student-nav-bar">
+            <button type="submit" id="student-exp-submit-btn" class="btn btn-primary btn-lg">
+              Run Verified Experiment
+            </button>
+            <button type="button" id="student-exp-repeat-btn" class="btn btn-ghost">
+              Repeat Question
+            </button>
+            <button type="button" id="student-exp-back-btn" class="btn btn-secondary">
+              Back to Explore
+            </button>
+            <button type="button" id="student-exp-help-btn" class="btn btn-ghost">
+              Help
+            </button>
+          </div>
+        </form>
+
+        <p id="student-exp-note" class="limitation-note"></p>
+      </section>
+
+      <!-- Stage 5: Understand Result & Next Lesson -->
+      <section id="student-step-summary" class="student-card" aria-labelledby="student-sum-heading" hidden>
+        <p class="eyebrow">Step 5 of 5 · Understand the Result</p>
+        <h2 id="student-sum-heading" tabindex="-1">Verified Experiment Result</h2>
+
+        <div id="student-sum-box" class="lab-result-box">
+          <p id="student-sum-status" class="lab-result-status"></p>
+          <p id="student-sum-headline" class="feedback-announcement"></p>
+          <p id="student-sum-explanation" class="summary-text"></p>
+          <h3>Verified Evidence</h3>
+          <ul id="student-sum-evidence" class="changes-list"></ul>
+        </div>
+
+        <div class="student-nav-bar">
+          <button type="button" id="student-sum-retry-btn" class="btn btn-secondary btn-lg">
+            Retry Experiment
+          </button>
+          <button type="button" id="student-sum-next-lesson-btn" class="btn btn-primary btn-lg">
+            Next Lesson →
+          </button>
+          <button type="button" id="student-sum-repeat-btn" class="btn btn-ghost">
+            Repeat Result
+          </button>
+          <button type="button" id="student-sum-home-btn" class="btn btn-ghost">
+            Back to Subjects
+          </button>
+          <button type="button" id="student-sum-educator-btn" class="btn btn-ghost">
+            Explore Full Details &amp; Tutor
+          </button>
+        </div>
+      </section>
+    </section>
+
+    <!-- Educator / Advanced Experience: Welcome, Pre-annotated Examples, & Analyze Your Own Diagram -->
+    <section id="welcome-section" class="welcome-section" aria-labelledby="welcome-heading" hidden>
       <div class="hero-block">
         <p class="eyebrow">Accessible Interactive STEM Learning</p>
         <h1 id="welcome-heading">Explore STEM Diagrams Without Relying on Sight</h1>

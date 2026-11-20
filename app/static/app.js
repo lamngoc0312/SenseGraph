@@ -87,12 +87,95 @@
     mathPointIdx: 0,
     // Phase 11: Evidence-Grounded Tutor history (session-only)
     tutorHistory: [],
+    // Phase 14: Audio-First Student Experience vs Educator / Advanced Experience
+    uiExperience: "student", // "student" | "educator"
+    studentStep: "welcome", // "welcome" | "subjects" | "explore" | "experiment" | "summary"
+    studentCompIdx: 0,
+    studentLastResult: null,
+    spokenGuidanceEnabled: false, // Strictly OFF by default — never autoplays
+    lastNarrationText: "",
+    availableVoices: [],
+    selectedVoiceURI: "",
     isBusy: false,
   };
 
   const dom = {
     healthBadge: document.getElementById("health-badge"),
     brandHomeLink: document.getElementById("brand-home-link"),
+    expStudentBtn: document.getElementById("exp-student-btn"),
+    expEducatorBtn: document.getElementById("exp-educator-btn"),
+    audioStartBtn: document.getElementById("audio-start-btn"),
+    audioPauseBtn: document.getElementById("audio-pause-btn"),
+    audioStopBtn: document.getElementById("audio-stop-btn"),
+    audioRepeatBtn: document.getElementById("audio-repeat-btn"),
+    audioRateSelect: document.getElementById("audio-rate-select"),
+    audioVoiceSelect: document.getElementById("audio-voice-select"),
+    audioModeStatus: document.getElementById("audio-mode-status"),
+
+    // Phase 14: Student Experience DOM
+    studentSection: document.getElementById("student-section"),
+    studentStepper: document.getElementById("student-stepper"),
+    studentHelpDialog: document.getElementById("student-help-dialog"),
+    studentHelpHeading: document.getElementById("student-help-heading"),
+    studentHelpCloseBtn: document.getElementById("student-help-close-btn"),
+    studentStepWelcome: document.getElementById("student-step-welcome"),
+    studentStageHeading: document.getElementById("student-stage-heading"),
+    studentStartSrBtn: document.getElementById("student-start-sr-btn"),
+    studentStartVoiceBtn: document.getElementById("student-start-voice-btn"),
+    studentWelcomeHelpBtn: document.getElementById("student-welcome-help-btn"),
+    studentToEducatorBtn: document.getElementById("student-to-educator-btn"),
+
+    studentStepSubjects: document.getElementById("student-step-subjects"),
+    studentSubjectsHeading: document.getElementById("student-subjects-heading"),
+    studentSubjectsGrid: document.getElementById("student-subjects-grid"),
+    studentSubjectsBackBtn: document.getElementById("student-subjects-back-btn"),
+    studentSubjectsUploadBtn: document.getElementById("student-subjects-upload-btn"),
+    studentSubjectsHelpBtn: document.getElementById("student-subjects-help-btn"),
+
+    studentStepExplore: document.getElementById("student-step-explore"),
+    studentExploreHeading: document.getElementById("student-explore-heading"),
+    studentExploreBadge: document.getElementById("student-explore-badge"),
+    studentExploreIntro: document.getElementById("student-explore-intro"),
+    studentCompCounter: document.getElementById("student-comp-counter"),
+    studentCompTitle: document.getElementById("student-comp-title"),
+    studentCompRole: document.getElementById("student-comp-role"),
+    studentCompDesc: document.getElementById("student-comp-desc"),
+    studentCompConnections: document.getElementById("student-comp-connections"),
+    studentPrevCompBtn: document.getElementById("student-prev-comp-btn"),
+    studentNextCompBtn: document.getElementById("student-next-comp-btn"),
+    studentRepeatExploreBtn: document.getElementById("student-repeat-explore-btn"),
+    studentGoExperimentBtn: document.getElementById("student-go-experiment-btn"),
+    studentMiniSvg: document.getElementById("student-mini-svg"),
+    studentExploreBackBtn: document.getElementById("student-explore-back-btn"),
+    studentExploreHelpBtn: document.getElementById("student-explore-help-btn"),
+    studentExploreEducatorBtn: document.getElementById("student-explore-educator-btn"),
+
+    studentStepExperiment: document.getElementById("student-step-experiment"),
+    studentExpHeading: document.getElementById("student-exp-heading"),
+    studentExpPrompt: document.getElementById("student-exp-prompt"),
+    studentExpHint: document.getElementById("student-exp-hint"),
+    studentExpForm: document.getElementById("student-exp-form"),
+    studentExpLegend: document.getElementById("student-exp-legend"),
+    studentExpOptions: document.getElementById("student-exp-options"),
+    studentExpSubmitBtn: document.getElementById("student-exp-submit-btn"),
+    studentExpRepeatBtn: document.getElementById("student-exp-repeat-btn"),
+    studentExpBackBtn: document.getElementById("student-exp-back-btn"),
+    studentExpHelpBtn: document.getElementById("student-exp-help-btn"),
+    studentExpNote: document.getElementById("student-exp-note"),
+
+    studentStepSummary: document.getElementById("student-step-summary"),
+    studentSumHeading: document.getElementById("student-sum-heading"),
+    studentSumBox: document.getElementById("student-sum-box"),
+    studentSumStatus: document.getElementById("student-sum-status"),
+    studentSumHeadline: document.getElementById("student-sum-headline"),
+    studentSumExplanation: document.getElementById("student-sum-explanation"),
+    studentSumEvidence: document.getElementById("student-sum-evidence"),
+    studentSumRetryBtn: document.getElementById("student-sum-retry-btn"),
+    studentSumNextLessonBtn: document.getElementById("student-sum-next-lesson-btn"),
+    studentSumRepeatBtn: document.getElementById("student-sum-repeat-btn"),
+    studentSumHomeBtn: document.getElementById("student-sum-home-btn"),
+    studentSumEducatorBtn: document.getElementById("student-sum-educator-btn"),
+
     statusAnnouncer: document.getElementById("status-announcer"),
     errorBanner: document.getElementById("error-banner"),
     errorBannerText: document.getElementById("error-banner-text"),
@@ -249,6 +332,13 @@
   }
 
   function announce(message) {
+    state.lastNarrationText = message;
+    if (state.spokenGuidanceEnabled) {
+      // Avoid duplicate speech when browser voice is explicitly enabled: speak aloud
+      // rather than simultaneously flooding NVDA/VoiceOver live regions.
+      speakText(message);
+      return;
+    }
     if (!dom.statusAnnouncer) return;
     dom.statusAnnouncer.textContent = "";
     window.requestAnimationFrame(() => {
@@ -372,6 +462,7 @@
   }
 
   function showSection(sectionName) {
+    dom.studentSection.hidden = sectionName !== "student";
     dom.welcomeSection.hidden = sectionName !== "welcome";
     dom.reviewSection.hidden = sectionName !== "review";
     dom.explorerSection.hidden = sectionName !== "explorer";
@@ -1450,13 +1541,140 @@
     state.ttsSpeaking = false;
     state.ttsPaused = false;
     updateTtsControls();
+    updateAudioBarControls();
+  }
+
+  function isSpeechSupported() {
+    return (
+      typeof window !== "undefined" &&
+      "speechSynthesis" in window &&
+      typeof window.SpeechSynthesisUtterance === "function"
+    );
+  }
+
+  function populateVoices() {
+    if (!dom.audioVoiceSelect || !isSpeechSupported()) return;
+    const voices = window.speechSynthesis.getVoices() || [];
+    state.availableVoices = voices;
+
+    const currentVal = state.selectedVoiceURI || dom.audioVoiceSelect.value;
+    dom.audioVoiceSelect.textContent = "";
+
+    const defaultOpt = document.createElement("option");
+    defaultOpt.value = "";
+    defaultOpt.textContent = "Default browser voice";
+    dom.audioVoiceSelect.appendChild(defaultOpt);
+
+    for (const voice of voices) {
+      const opt = document.createElement("option");
+      opt.value = voice.voiceURI;
+      opt.textContent = `${voice.name} (${voice.lang})`;
+      if (voice.voiceURI === currentVal) {
+        opt.selected = true;
+      }
+      dom.audioVoiceSelect.appendChild(opt);
+    }
+  }
+
+  function updateAudioBarControls() {
+    if (!dom.audioStartBtn) return;
+    const supported = isSpeechSupported();
+
+    if (!supported) {
+      dom.audioStartBtn.disabled = true;
+      dom.audioPauseBtn.disabled = true;
+      dom.audioStopBtn.disabled = true;
+      dom.audioRateSelect.disabled = true;
+      dom.audioVoiceSelect.disabled = true;
+      dom.audioModeStatus.textContent =
+        "Browser speech synthesis unavailable — screen reader mode active.";
+      return;
+    }
+
+    dom.audioStartBtn.setAttribute("aria-pressed", String(state.spokenGuidanceEnabled));
+    dom.audioStartBtn.textContent = state.spokenGuidanceEnabled
+      ? "Stop spoken guidance"
+      : "Start spoken guidance";
+    dom.audioStartBtn.className = state.spokenGuidanceEnabled
+      ? "btn btn-primary btn-sm"
+      : "btn btn-teal btn-sm";
+
+    dom.audioPauseBtn.disabled = !state.ttsSpeaking;
+    dom.audioPauseBtn.textContent = state.ttsPaused ? "Resume" : "Pause";
+    dom.audioStopBtn.disabled = !state.ttsSpeaking;
+
+    if (state.ttsSpeaking) {
+      dom.audioModeStatus.textContent = state.ttsPaused
+        ? "Spoken guidance paused"
+        : "Speaking guidance…";
+    } else if (state.spokenGuidanceEnabled) {
+      dom.audioModeStatus.textContent =
+        "Listening mode: Spoken guidance ON (browser voice)";
+    } else {
+      dom.audioModeStatus.textContent =
+        "Listening mode: Screen reader ready (browser voice off)";
+    }
+  }
+
+  function speakText(text) {
+    if (!text || !isSpeechSupported()) return;
+    window.speechSynthesis.cancel();
+    const utterance = new window.SpeechSynthesisUtterance(text);
+    const rateVal =
+      (dom.audioRateSelect && parseFloat(dom.audioRateSelect.value)) ||
+      (dom.tourTtsRate && parseFloat(dom.tourTtsRate.value)) ||
+      1.0;
+    utterance.rate = rateVal;
+
+    if (state.selectedVoiceURI && state.availableVoices.length > 0) {
+      const match = state.availableVoices.find(
+        (v) => v.voiceURI === state.selectedVoiceURI
+      );
+      if (match) utterance.voice = match;
+    }
+
+    utterance.onstart = () => {
+      state.ttsSpeaking = true;
+      state.ttsPaused = false;
+      updateTtsControls();
+      updateAudioBarControls();
+    };
+    utterance.onend = () => {
+      state.ttsSpeaking = false;
+      state.ttsPaused = false;
+      updateTtsControls();
+      updateAudioBarControls();
+    };
+    utterance.onerror = () => {
+      state.ttsSpeaking = false;
+      state.ttsPaused = false;
+      updateTtsControls();
+      updateAudioBarControls();
+    };
+    window.speechSynthesis.speak(utterance);
+  }
+
+  function setSpokenGuidance(enabled, introNarration = "") {
+    state.spokenGuidanceEnabled = Boolean(enabled);
+    if (!state.spokenGuidanceEnabled) {
+      stopTts();
+      if (dom.statusAnnouncer) {
+        dom.statusAnnouncer.textContent =
+          "Spoken guidance turned off. Screen reader announcements active.";
+      }
+    } else {
+      updateAudioBarControls();
+      const textToSpeak =
+        introNarration ||
+        state.lastNarrationText ||
+        "Spoken guidance enabled. Use Next, Previous, or Repeat at any time.";
+      state.lastNarrationText = textToSpeak;
+      speakText(textToSpeak);
+    }
   }
 
   function updateTtsControls() {
-    const supported =
-      typeof window !== "undefined" &&
-      "speechSynthesis" in window &&
-      typeof window.SpeechSynthesisUtterance === "function";
+    const supported = isSpeechSupported();
 
     if (!supported) {
       dom.tourTtsSpeakBtn.disabled = true;
@@ -1479,36 +1697,15 @@
   }
 
   function speakCurrentTourText() {
-    if (
-      !state.tourText ||
-      typeof window === "undefined" ||
-      !("speechSynthesis" in window)
-    ) {
+    if (!state.tourText || !isSpeechSupported()) {
       return;
     }
-    window.speechSynthesis.cancel();
-    const utterance = new window.SpeechSynthesisUtterance(state.tourText);
-    utterance.rate = parseFloat(dom.tourTtsRate.value) || 1.0;
-    utterance.onstart = () => {
-      state.ttsSpeaking = true;
-      state.ttsPaused = false;
-      updateTtsControls();
-    };
-    utterance.onend = () => {
-      state.ttsSpeaking = false;
-      state.ttsPaused = false;
-      updateTtsControls();
-    };
-    utterance.onerror = () => {
-      state.ttsSpeaking = false;
-      state.ttsPaused = false;
-      updateTtsControls();
-    };
-    window.speechSynthesis.speak(utterance);
+    state.lastNarrationText = state.tourText;
+    speakText(state.tourText);
   }
 
   function togglePauseTts() {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    if (!isSpeechSupported()) return;
     if (!state.ttsSpeaking) return;
     if (state.ttsPaused) {
       window.speechSynthesis.resume();
@@ -1518,6 +1715,7 @@
       state.ttsPaused = true;
     }
     updateTtsControls();
+    updateAudioBarControls();
   }
 
   function buildTourOverviewText(diagram) {
@@ -1920,16 +2118,22 @@
     }
   }
 
-  function renderSemanticSvgGraph(diagram) {
-    const svg = dom.semanticGraphSvg;
+  function renderSemanticSvgGraph(diagram, targetSvg = dom.semanticGraphSvg) {
+    const svg = targetSvg;
     if (!svg || !diagram) return;
     svg.textContent = "";
-    updateSvgComparisonBadge(diagram);
+    if (svg === dom.semanticGraphSvg) {
+      updateSvgComparisonBadge(diagram);
+    }
 
-    // Arrowhead markers for directed Biology edges
+    const markerSuffix = svg.id || "main";
+    const normalMarkerId = `arrow-head-${markerSuffix}`;
+    const highlightMarkerId = `arrow-head-highlight-${markerSuffix}`;
+
+    // Arrowhead markers for directed Biology / Flowchart edges
     const defs = createSvgEl("defs");
     const markerNormal = createSvgEl("marker", {
-      id: "arrow-head",
+      id: normalMarkerId,
       viewBox: "0 0 10 10",
       refX: "9",
       refY: "5",
@@ -1941,7 +2145,7 @@
     defs.appendChild(markerNormal);
 
     const markerHighlight = createSvgEl("marker", {
-      id: "arrow-head-highlight",
+      id: highlightMarkerId,
       viewBox: "0 0 10 10",
       refX: "9",
       refY: "5",
@@ -2021,8 +2225,8 @@
       };
       if (diagram.domain === "biology_food_web" || diagram.domain === "cs_flowchart") {
         lineAttrs["marker-end"] = isHighlighted
-          ? "url(#arrow-head-highlight)"
-          : "url(#arrow-head)";
+          ? `url(#${highlightMarkerId})`
+          : `url(#${normalMarkerId})`;
       }
       svg.appendChild(createSvgEl("line", lineAttrs));
 
@@ -3280,11 +3484,479 @@
     }
   }
 
+  // --- Phase 14: Audio-First Student Experience & Experience Switcher ---
+
+  const STUDENT_STEP_ORDER = ["welcome", "subjects", "explore", "experiment", "summary"];
+
+  const STUDENT_SUBJECT_META = {
+    physics_circuit: {
+      icon: "P",
+      shortTitle: "Physics — Series Circuit",
+      blurb: "Explore a battery, switch, and bulb, then test what happens when the switch changes.",
+    },
+    biology_food_web: {
+      icon: "B",
+      shortTitle: "Biology — Food Web",
+      blurb: "Follow energy arrows from food to consumer and test removing one organism.",
+    },
+    cs_flowchart: {
+      icon: "CS",
+      shortTitle: "Computer Science — Flowchart",
+      blurb: "Walk through start, assignment, decision, and loop blocks step by step.",
+    },
+    math_plot: {
+      icon: "M",
+      shortTitle: "Mathematics — XY Line Plot",
+      blurb: "Inspect measured data points, peaks, and trends without relying on sight.",
+    },
+    chemistry_molecule: {
+      icon: "Ch",
+      shortTitle: "Chemistry — Molecule Structure",
+      blurb: "Inspect atoms, covalent bond counts, and neighbors in a verified molecule.",
+    },
+  };
+
+  let lastHelpTriggerEl = null;
+
+  function openStudentHelp(triggerEl = null) {
+    if (!dom.studentHelpDialog) return;
+    lastHelpTriggerEl = triggerEl || document.activeElement;
+    dom.studentHelpDialog.hidden = false;
+    if (dom.studentHelpHeading) dom.studentHelpHeading.focus();
+    announce(
+      "Help opened. Use Tab to move between buttons, Enter to activate, and Escape to close help."
+    );
+  }
+
+  function closeStudentHelp(restoreFocus = true) {
+    if (!dom.studentHelpDialog || dom.studentHelpDialog.hidden) return;
+    dom.studentHelpDialog.hidden = true;
+    if (restoreFocus && lastHelpTriggerEl && typeof lastHelpTriggerEl.focus === "function") {
+      lastHelpTriggerEl.focus();
+    }
+    lastHelpTriggerEl = null;
+  }
+
+  function updateExperienceButtons() {
+    if (!dom.expStudentBtn || !dom.expEducatorBtn) return;
+    const isStudent = state.uiExperience === "student";
+    dom.expStudentBtn.setAttribute("aria-pressed", String(isStudent));
+    dom.expEducatorBtn.setAttribute("aria-pressed", String(!isStudent));
+    dom.expStudentBtn.className = isStudent
+      ? "btn btn-primary btn-sm"
+      : "btn btn-secondary btn-sm";
+    dom.expEducatorBtn.className = !isStudent
+      ? "btn btn-primary btn-sm"
+      : "btn btn-secondary btn-sm";
+  }
+
+  function setStudentStep(step, focusHeading = true) {
+    state.studentStep = step;
+    closeStudentHelp(false);
+
+    const stepCards = {
+      welcome: dom.studentStepWelcome,
+      subjects: dom.studentStepSubjects,
+      explore: dom.studentStepExplore,
+      experiment: dom.studentStepExperiment,
+      summary: dom.studentStepSummary,
+    };
+    const stepHeadings = {
+      welcome: dom.studentStageHeading,
+      subjects: dom.studentSubjectsHeading,
+      explore: dom.studentExploreHeading,
+      experiment: dom.studentExpHeading,
+      summary: dom.studentSumHeading,
+    };
+
+    for (const [key, card] of Object.entries(stepCards)) {
+      if (card) card.hidden = key !== step;
+    }
+
+    if (dom.studentStepper) {
+      const currentIdx = STUDENT_STEP_ORDER.indexOf(step);
+      const items = dom.studentStepper.querySelectorAll("li[data-step]");
+      items.forEach((li) => {
+        const s = li.getAttribute("data-step");
+        const idx = STUDENT_STEP_ORDER.indexOf(s);
+        if (s === step) {
+          li.setAttribute("aria-current", "step");
+          li.classList.remove("is-done");
+        } else {
+          li.removeAttribute("aria-current");
+          if (idx >= 0 && idx < currentIdx) {
+            li.classList.add("is-done");
+          } else {
+            li.classList.remove("is-done");
+          }
+        }
+      });
+    }
+
+    if (focusHeading && stepHeadings[step]) {
+      stepHeadings[step].focus();
+    }
+  }
+
+  function setExperience(mode) {
+    if (mode !== "student" && mode !== "educator") return;
+    clearError();
+
+    if (mode === "student") {
+      // Scientific safety: never bypass human review for an unreviewed AI draft.
+      if (state.reviewDraft && state.reviewDraft.review_status !== "confirmed") {
+        showError(
+          "This AI-generated diagram is still unreviewed. Please review and confirm it in Educator Mode before exploring in Student Experience."
+        );
+        announce(
+          "Cannot switch to Student Experience while an unreviewed AI draft is open. Complete human review first."
+        );
+        return;
+      }
+
+      state.uiExperience = "student";
+      updateExperienceButtons();
+      showSection("student");
+
+      if (state.currentDiagram && state.currentDiagram.review_status === "confirmed") {
+        const idx = state.currentDiagram.nodes.findIndex(
+          (n) => n.id === state.selectedNodeId
+        );
+        state.studentCompIdx = idx >= 0 ? idx : 0;
+        setStudentStep("explore", true);
+        renderStudentExplore(false);
+        announce(
+          `Switched to Student Experience for ${state.currentDiagram.title}.`
+        );
+      } else {
+        const targetStep =
+          state.studentStep === "welcome" || state.studentStep === "subjects"
+            ? state.studentStep
+            : "subjects";
+        setStudentStep(targetStep, true);
+        announce("Switched to Student Experience.");
+      }
+      return;
+    }
+
+    // Switching to Educator / Advanced Experience while preserving loaded diagram state.
+    state.uiExperience = "educator";
+    updateExperienceButtons();
+
+    if (state.reviewDraft) {
+      showSection("review");
+      dom.reviewHeading.focus();
+      announce("Switched to Educator Review mode.");
+    } else if (state.currentDiagram) {
+      renderExplorer();
+      dom.diagramTitle.focus();
+      announce(
+        `Switched to Educator Advanced View for ${state.currentDiagram.title}. All diagram state preserved.`
+      );
+    } else {
+      showSection("welcome");
+      const heading = document.getElementById("welcome-heading");
+      if (heading) {
+        heading.setAttribute("tabindex", "-1");
+        heading.focus();
+      }
+      announce("Switched to Educator Advanced mode.");
+    }
+  }
+
+  function renderStudentSubjects() {
+    if (!dom.studentSubjectsGrid) return;
+    dom.studentSubjectsGrid.textContent = "";
+
+    for (const ex of state.examples) {
+      const meta = STUDENT_SUBJECT_META[ex.domain] || {
+        icon: "S",
+        shortTitle: ex.title,
+        blurb: ex.summary,
+      };
+
+      const card = document.createElement("article");
+      card.className = "subject-tile";
+
+      const badge = document.createElement("span");
+      badge.className = "subject-icon-badge";
+      badge.setAttribute("aria-hidden", "true");
+      badge.textContent = meta.icon;
+
+      const heading = document.createElement("h3");
+      heading.textContent = meta.shortTitle;
+
+      const blurb = document.createElement("p");
+      blurb.textContent = meta.blurb;
+
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn btn-primary";
+      btn.textContent = "Start Lesson";
+      btn.setAttribute("aria-label", `Start Lesson: ${meta.shortTitle}`);
+      btn.addEventListener("click", () => startStudentLesson(ex.id));
+
+      card.appendChild(badge);
+      card.appendChild(heading);
+      card.appendChild(blurb);
+      card.appendChild(btn);
+      dom.studentSubjectsGrid.appendChild(card);
+    }
+  }
+
+  function buildStudentComponentNarration(diagram, node, idx) {
+    const meta = getComponentMetaText(diagram, node);
+    const conn = buildTourConnectionsText(diagram, node);
+    return (
+      `Component ${idx + 1} of ${diagram.nodes.length}: ${node.label}. ` +
+      `${meta}. ${node.description} ${conn}`
+    );
+  }
+
+  function renderStudentExplore(shouldAnnounce = true) {
+    const diagram = state.currentDiagram;
+    if (!diagram || !diagram.nodes || diagram.nodes.length === 0) return;
+
+    if (state.studentCompIdx < 0) state.studentCompIdx = 0;
+    if (state.studentCompIdx >= diagram.nodes.length) {
+      state.studentCompIdx = diagram.nodes.length - 1;
+    }
+
+    const node = diagram.nodes[state.studentCompIdx];
+    state.selectedNodeId = node.id;
+
+    dom.studentExploreHeading.textContent = diagram.title;
+    dom.studentExploreBadge.textContent = formatSourceLabel(diagram.source);
+    dom.studentExploreIntro.textContent = diagram.summary;
+
+    dom.studentCompCounter.textContent = `Component ${state.studentCompIdx + 1} of ${diagram.nodes.length}`;
+    dom.studentCompTitle.textContent = node.label;
+    dom.studentCompRole.textContent = getComponentMetaText(diagram, node);
+    dom.studentCompDesc.textContent = node.description;
+    dom.studentCompConnections.textContent = buildTourConnectionsText(diagram, node);
+
+    dom.studentPrevCompBtn.disabled = state.studentCompIdx === 0;
+    const isLast = state.studentCompIdx === diagram.nodes.length - 1;
+    dom.studentNextCompBtn.disabled = isLast;
+    dom.studentNextCompBtn.textContent = isLast
+      ? "Last Component Reached"
+      : "Next Component";
+
+    renderSemanticSvgGraph(diagram, dom.studentMiniSvg);
+
+    const narration = buildStudentComponentNarration(diagram, node, state.studentCompIdx);
+    state.lastNarrationText = narration;
+    if (shouldAnnounce) {
+      announce(narration);
+    }
+  }
+
+  async function startStudentLesson(exampleId) {
+    if (state.isBusy) return;
+    clearError();
+    state.isBusy = true;
+    announce("Loading lesson…");
+
+    try {
+      const diagram = await apiRequest(`/api/examples/${encodeURIComponent(exampleId)}`);
+      const backendState = await fetchBackendState(diagram);
+
+      state.baselineDiagram = deepClone(diagram);
+      state.currentDiagram = deepClone(diagram);
+      state.backendState = backendState;
+      state.selectedNodeId = diagram.nodes.length > 0 ? diagram.nodes[0].id : null;
+      state.studentCompIdx = 0;
+      state.studentLastResult = null;
+      state.lastSimulation = null;
+      state.explorerMode = "explore";
+      state.tourStep = "overview";
+      state.flowchartTrace = null;
+      state.flowchartStepIdx = 0;
+      state.flowchartInputValues = {};
+      state.mathAnalysis = null;
+      state.mathPointIdx = 0;
+      state.tutorHistory = [];
+      renderTutorHistory();
+
+      if (diagram.domain === "math_plot") {
+        state.mathAnalysis = await apiRequest("/api/math/analyze", {
+          method: "POST",
+          body: JSON.stringify({ diagram }),
+        });
+      }
+
+      stopTts();
+      resetLabState();
+      await loadLabChallengesForBaseline();
+      state.isBusy = false;
+
+      setStudentStep("explore", true);
+      renderStudentExplore(false);
+
+      const firstNode = diagram.nodes[0];
+      const introText =
+        `Started lesson: ${diagram.title}. ${formatSourceLabel(diagram.source)}. ` +
+        `This diagram has ${diagram.nodes.length} components. ` +
+        (firstNode ? buildStudentComponentNarration(diagram, firstNode, 0) : "");
+      announce(introText);
+    } catch (err) {
+      state.isBusy = false;
+      showError(`Could not load lesson: ${err.message}`);
+      announce(`Error loading lesson: ${err.message}`);
+    }
+  }
+
+  function renderStudentExperiment() {
+    if (!state.labAvailable || !state.labChallenges.length) {
+      dom.studentExpHeading.textContent = "Experiment Unavailable";
+      dom.studentExpPrompt.textContent =
+        state.labUnavailableReason ||
+        "No verified experiment challenge is available for this diagram.";
+      dom.studentExpHint.textContent = "";
+      dom.studentExpOptions.textContent = "";
+      dom.studentExpSubmitBtn.disabled = true;
+      dom.studentExpNote.textContent = "";
+      return;
+    }
+
+    const challenge = state.labChallenges[state.labIndex] || state.labChallenges[0];
+    dom.studentExpHeading.textContent = challenge.title;
+    dom.studentExpPrompt.textContent = challenge.prompt;
+    dom.studentExpHint.textContent = challenge.hint ? `Hint: ${challenge.hint}` : "";
+    dom.studentExpLegend.textContent =
+      challenge.input_type === "multi_choice"
+        ? "Select all options that apply"
+        : "Choose one prediction";
+    dom.studentExpNote.textContent = challenge.scientific_note || "";
+    dom.studentExpSubmitBtn.disabled = state.isBusy;
+
+    dom.studentExpOptions.textContent = "";
+    const inputType = challenge.input_type === "multi_choice" ? "checkbox" : "radio";
+    for (const opt of challenge.options) {
+      const label = document.createElement("label");
+      label.className = "lab-option-item";
+
+      const input = document.createElement("input");
+      input.type = inputType;
+      input.name = "student-exp-option";
+      input.value = opt.id;
+
+      const span = document.createElement("span");
+      span.textContent = opt.label;
+
+      label.appendChild(input);
+      label.appendChild(span);
+      dom.studentExpOptions.appendChild(label);
+    }
+
+    const narration = `Step 4: ${challenge.title}. ${challenge.prompt}`;
+    announce(narration);
+  }
+
+  async function handleStudentExperimentSubmit(event) {
+    event.preventDefault();
+    if (!state.baselineDiagram || !state.labChallenges.length || state.isBusy) return;
+    clearError();
+
+    const challenge = state.labChallenges[state.labIndex] || state.labChallenges[0];
+    const checked = Array.from(
+      dom.studentExpOptions.querySelectorAll("input:checked")
+    ).map((el) => el.value);
+
+    if (challenge.input_type === "single_choice" && checked.length === 0) {
+      showError("Please choose a prediction before running the experiment.");
+      const firstInput = dom.studentExpOptions.querySelector("input");
+      if (firstInput) firstInput.focus();
+      announce("Please choose a prediction before running the experiment.");
+      return;
+    }
+
+    state.isBusy = true;
+    dom.studentExpSubmitBtn.disabled = true;
+
+    try {
+      const evaluation = await apiRequest("/api/learning/evaluate", {
+        method: "POST",
+        body: JSON.stringify({
+          diagram: state.baselineDiagram,
+          challenge_id: challenge.id,
+          selected_option_ids: checked,
+        }),
+      });
+
+      state.studentLastResult = evaluation;
+      state.labCurrentResult = evaluation;
+      state.labCompletedIds.add(challenge.id);
+      if (evaluation.correct) state.labCorrectIds.add(challenge.id);
+
+      if (evaluation.simulation_result) {
+        const updated = evaluation.simulation_result.updated_diagram;
+        const backendState = await fetchBackendState(updated);
+        state.currentDiagram = updated;
+        state.backendState = backendState;
+        state.lastSimulation = {
+          event: evaluation.simulation_result.event,
+          announcement: evaluation.simulation_result.announcement,
+          changes: evaluation.simulation_result.changes || [],
+        };
+      }
+
+      state.isBusy = false;
+      setStudentStep("summary", true);
+      renderStudentSummary();
+    } catch (err) {
+      state.isBusy = false;
+      dom.studentExpSubmitBtn.disabled = false;
+      showError(`Experiment failed: ${err.message}`);
+      announce(`Experiment failed: ${err.message}`);
+    }
+  }
+
+  function renderStudentSummary() {
+    const res = state.studentLastResult;
+    if (!res) return;
+
+    dom.studentSumBox.classList.remove("is-correct", "is-incorrect");
+    dom.studentSumBox.classList.add(res.correct ? "is-correct" : "is-incorrect");
+    dom.studentSumStatus.textContent = res.correct
+      ? "Verified Result: Prediction Matched"
+      : "Verified Result: Prediction Did Not Match";
+    dom.studentSumHeadline.textContent = res.summary;
+    dom.studentSumExplanation.textContent = res.explanation;
+
+    dom.studentSumEvidence.textContent = "";
+    const evidenceItems = res.evidence || [];
+    for (const item of evidenceItems) {
+      const li = document.createElement("li");
+      li.textContent = item;
+      dom.studentSumEvidence.appendChild(li);
+    }
+
+    const narration = `${dom.studentSumStatus.textContent}. ${res.summary} ${res.explanation}`;
+    announce(narration);
+  }
+
+  function startNextStudentLesson() {
+    if (!state.examples.length) return;
+    const curId = state.baselineDiagram ? state.baselineDiagram.id : null;
+    const idx = state.examples.findIndex((ex) => ex.id === curId);
+    const next = state.examples[(idx + 1) % state.examples.length];
+    if (next) {
+      startStudentLesson(next.id);
+    }
+  }
+
   function showWelcome() {
     clearError();
     stopTts();
     state.reviewDraft = null;
     state.reviewValidation = null;
+    if (state.uiExperience === "student") {
+      showSection("student");
+      setStudentStep("welcome", true);
+      announce("Returned to SenseGraph Student Welcome.");
+      return;
+    }
     showSection("welcome");
     const heading = document.getElementById("welcome-heading");
     if (heading) {
@@ -3299,11 +3971,157 @@
     dom.backToHomeBtn.addEventListener("click", showWelcome);
     dom.reviewCancelBtn.addEventListener("click", showWelcome);
     dom.brandHomeLink.addEventListener("click", (e) => {
-      if (dom.welcomeSection.hidden) {
+      e.preventDefault();
+      showWelcome();
+    });
+
+    // Phase 14: Experience Switcher
+    dom.expStudentBtn.addEventListener("click", () => setExperience("student"));
+    dom.expEducatorBtn.addEventListener("click", () => setExperience("educator"));
+
+    // Phase 14: Global Audio-First Guidance Bar (Off by default — never autoplays)
+    dom.audioStartBtn.addEventListener("click", () => {
+      setSpokenGuidance(!state.spokenGuidanceEnabled);
+    });
+    dom.audioPauseBtn.addEventListener("click", togglePauseTts);
+    dom.audioStopBtn.addEventListener("click", stopTts);
+    dom.audioRepeatBtn.addEventListener("click", () => {
+      const text =
+        state.lastNarrationText ||
+        "SenseGraph is ready. Choose Screen Reader mode or Spoken Guidance to start.";
+      announce(text);
+    });
+    dom.audioRateSelect.addEventListener("change", () => {
+      if (dom.tourTtsRate) dom.tourTtsRate.value = dom.audioRateSelect.value;
+    });
+    dom.audioVoiceSelect.addEventListener("change", () => {
+      state.selectedVoiceURI = dom.audioVoiceSelect.value;
+    });
+    if (isSpeechSupported()) {
+      populateVoices();
+      window.speechSynthesis.onvoiceschanged = populateVoices;
+    }
+    window.addEventListener("beforeunload", stopTts);
+    updateAudioBarControls();
+    updateExperienceButtons();
+
+    // Phase 14: Student Experience Help & Escape handling
+    dom.studentHelpCloseBtn.addEventListener("click", () => closeStudentHelp(true));
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && dom.studentHelpDialog && !dom.studentHelpDialog.hidden) {
         e.preventDefault();
-        showWelcome();
+        closeStudentHelp(true);
       }
     });
+
+    // Phase 14: Student Step 1 (Welcome)
+    dom.studentStartSrBtn.addEventListener("click", () => {
+      setSpokenGuidance(false);
+      setStudentStep("subjects", true);
+      announce("Step 2: Choose a STEM subject to start your lesson.");
+    });
+    dom.studentStartVoiceBtn.addEventListener("click", () => {
+      setStudentStep("subjects", true);
+      setSpokenGuidance(
+        true,
+        "Spoken guidance is on. Step 2: Choose a STEM subject to start your lesson."
+      );
+    });
+    dom.studentWelcomeHelpBtn.addEventListener("click", (e) =>
+      openStudentHelp(e.currentTarget)
+    );
+    dom.studentToEducatorBtn.addEventListener("click", () => setExperience("educator"));
+
+    // Phase 14: Student Step 2 (Subjects)
+    dom.studentSubjectsBackBtn.addEventListener("click", () => {
+      setStudentStep("welcome", true);
+      announce("Returned to Welcome screen.");
+    });
+    dom.studentSubjectsUploadBtn.addEventListener("click", () => {
+      setExperience("educator");
+      const uploadHeading = document.getElementById("upload-heading");
+      if (uploadHeading) {
+        uploadHeading.setAttribute("tabindex", "-1");
+        uploadHeading.focus();
+      }
+    });
+    dom.studentSubjectsHelpBtn.addEventListener("click", (e) =>
+      openStudentHelp(e.currentTarget)
+    );
+
+    // Phase 14: Student Step 3 (Explore)
+    dom.studentPrevCompBtn.addEventListener("click", () => {
+      if (state.studentCompIdx > 0) {
+        state.studentCompIdx -= 1;
+        renderStudentExplore(true);
+      }
+    });
+    dom.studentNextCompBtn.addEventListener("click", () => {
+      if (
+        state.currentDiagram &&
+        state.studentCompIdx < state.currentDiagram.nodes.length - 1
+      ) {
+        state.studentCompIdx += 1;
+        renderStudentExplore(true);
+      }
+    });
+    dom.studentRepeatExploreBtn.addEventListener("click", () => {
+      renderStudentExplore(true);
+    });
+    dom.studentGoExperimentBtn.addEventListener("click", () => {
+      setStudentStep("experiment", true);
+      renderStudentExperiment();
+    });
+    dom.studentExploreBackBtn.addEventListener("click", () => {
+      setStudentStep("subjects", true);
+      announce("Returned to Subject selection.");
+    });
+    dom.studentExploreHelpBtn.addEventListener("click", (e) =>
+      openStudentHelp(e.currentTarget)
+    );
+    dom.studentExploreEducatorBtn.addEventListener("click", () =>
+      setExperience("educator")
+    );
+
+    // Phase 14: Student Step 4 (Experiment)
+    dom.studentExpForm.addEventListener("submit", handleStudentExperimentSubmit);
+    dom.studentExpRepeatBtn.addEventListener("click", () => {
+      const challenge = state.labChallenges[state.labIndex] || state.labChallenges[0];
+      if (challenge) {
+        announce(`${challenge.title}. ${challenge.prompt}`);
+      }
+    });
+    dom.studentExpBackBtn.addEventListener("click", () => {
+      setStudentStep("explore", true);
+      renderStudentExplore(true);
+    });
+    dom.studentExpHelpBtn.addEventListener("click", (e) =>
+      openStudentHelp(e.currentTarget)
+    );
+
+    // Phase 14: Student Step 5 (Summary)
+    dom.studentSumRetryBtn.addEventListener("click", async () => {
+      clearError();
+      state.studentLastResult = null;
+      await restoreBaselineForLab();
+      setStudentStep("experiment", true);
+      renderStudentExperiment();
+    });
+    dom.studentSumNextLessonBtn.addEventListener("click", startNextStudentLesson);
+    dom.studentSumRepeatBtn.addEventListener("click", () => {
+      if (state.studentLastResult) {
+        announce(
+          `${state.studentLastResult.summary} ${state.studentLastResult.explanation}`
+        );
+      }
+    });
+    dom.studentSumHomeBtn.addEventListener("click", () => {
+      setStudentStep("subjects", true);
+      announce("Returned to Subject selection.");
+    });
+    dom.studentSumEducatorBtn.addEventListener("click", () =>
+      setExperience("educator")
+    );
     dom.switchPhysicsBtn.addEventListener("click", () => loadExample("physics_series"));
     dom.switchBiologyBtn.addEventListener("click", () => loadExample("biology_food_web"));
     dom.switchCsBtn.addEventListener("click", () => loadExample("cs_flowchart"));
@@ -3458,6 +4276,9 @@
       state.examples = examples;
       renderHealth();
       renderExamplesGrid();
+      renderStudentSubjects();
+      showSection("student");
+      setStudentStep("welcome", false);
     } catch (err) {
       dom.examplesLoading.textContent = "Unable to connect to the SenseGraph backend.";
       dom.healthBadge.textContent = "Backend unavailable";
