@@ -12,6 +12,7 @@
 - D8: **Provider adapter** with Gemini as initial multimodal implementation. Reasons: swap if availability/pricing changes.
 - D9 (Phase 1): **Fixture IDs use the exact `id` values in `fixtures/*.json`** (`physics_series`, `biology_food_web`) rather than hyphenated aliases, matching `contracts/diagram.schema.json` and the bundled JSON files directly.
 - D10 (Phase 1): **`remove_organism` disallows removing the last remaining organism** (`400 INVALID_ACTION`) so that every `updated_diagram` returned by `/api/simulate` remains strictly valid against `contracts/diagram.schema.json` (`nodes.minItems >= 1`).
+- D11 (Phase 3): **Added read-only `POST /api/state` endpoint** to expose explicit backend-calculated physics (`bulb_states`, `switch_states`, `loop_wired`, `bulbs_on`) and biology counts so the frontend never derives scientific state by parsing natural-language summaries.
 
 ## Open risks and mitigation
 

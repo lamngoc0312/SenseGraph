@@ -178,3 +178,16 @@ class ErrorDetail(BaseModel):
 
 class ErrorEnvelope(BaseModel):
     error: ErrorDetail
+
+
+class DiagramStateResponse(BaseModel):
+    """Explicit backend-calculated state data for accessible frontend rendering."""
+
+    domain: DomainType
+    loop_wired: bool | None = None
+    all_switches_closed: bool | None = None
+    bulbs_on: bool | None = None
+    switch_states: dict[str, SwitchState] = Field(default_factory=dict)
+    bulb_states: dict[str, Literal["on", "off"]] = Field(default_factory=dict)
+    organism_count: int | None = None
+    relationship_count: int | None = None

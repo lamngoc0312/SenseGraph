@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -12,9 +12,10 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.domains import DomainSimulationError
 from app.domains.biology import remove_organism
-from app.domains.physics import toggle_switch
+from app.domains.physics import evaluate_circuit_state, toggle_switch
 from app.models import (
     DiagramDocument,
+    DiagramStateResponse,
     ErrorDetail,
     ErrorEnvelope,
     ExampleSummary,
@@ -23,6 +24,14 @@ from app.models import (
     SimulationRequest,
     SimulationResponse,
     ValidationResponse,
+)
+from app.services.ai_vision import (
+    GeminiVisionProvider,
+    ProviderNotConfiguredError,
+    VisionError,
+    VisionProvider,
+    sanitize_filename,
+    validate_uploaded_image,
 )
 from app.services.description import describe_diagram
 from app.services.fixtures import FixtureRepository
@@ -59,22 +68,31 @@ def _error_response(
     return JSONResponse(status_code=status_code, content=envelope.model_dump())
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    vision_provider: VisionProvider | None = None,
+) -> FastAPI:
     """Create and configure the SenseGraph FastAPI application."""
     active_settings = settings or load_settings()
     fixture_repo = FixtureRepository(active_settings.fixtures_dir)
+    active_provider: VisionProvider | None = (
+        vision_provider
+        if vision_provider is not None
+        else (GeminiVisionProvider(active_settings) if active_settings.ai_configured else None)
+    )
 
     application = FastAPI(
         title="SenseGraph API",
-        version="0.1.0",
+        version="0.3.0",
         description=(
-            "Accessible interactive STEM diagram semantic graph and deterministic "
-            "simulation backend (Phase 1: Physics P0 and Biology P0)."
+            "Accessible interactive STEM diagram semantic graph, deterministic "
+            "simulation engines, and Gemini Vision extraction backend."
         ),
     )
 
     application.state.settings = active_settings
     application.state.fixture_repo = fixture_repo
+    application.state.vision_provider = active_provider
 
     static_dir = PROJECT_ROOT / "app" / "static"
     fixture_images_dir = active_settings.fixtures_dir / "images"
@@ -100,6 +118,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @application.exception_handler(DomainSimulationError)
     async def handle_domain_error(
         _request: Request, exc: DomainSimulationError
+    ) -> JSONResponse:
+        return _error_response(exc.status_code, exc.code, exc.message, exc.details)
+
+    @application.exception_handler(VisionError)
+    async def handle_vision_error(
+        _request: Request, exc: VisionError
     ) -> JSONResponse:
         return _error_response(exc.status_code, exc.code, exc.message, exc.details)
 
@@ -133,8 +157,75 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def get_health() -> HealthResponse:
         return HealthResponse(
             status="ok",
-            ai_configured=active_settings.ai_configured,
+            ai_configured=active_provider is not None,
             supported_domains=list(SUPPORTED_DOMAINS),
+        )
+
+    @application.post("/api/analyze", response_model=DiagramDocument)
+    async def post_analyze(
+        file: Annotated[UploadFile, File(...)],
+        domain: Annotated[str, Form(...)],
+        consent: Annotated[str, Form()] = "false",
+    ) -> DiagramDocument:
+        if domain not in SUPPORTED_DOMAINS:
+            raise APIError(
+                status_code=400,
+                code="INVALID_DOMAIN",
+                message=(
+                    f"Unsupported domain '{domain}'. "
+                    f"Choose one of: {', '.join(SUPPORTED_DOMAINS)}."
+                ),
+            )
+
+        consent_accepted = consent.strip().lower() in {"true", "1", "yes"}
+        if not consent_accepted:
+            raise APIError(
+                status_code=400,
+                code="CONSENT_REQUIRED",
+                message=(
+                    "Explicit user consent is required before sending an uploaded "
+                    "image to an external AI provider."
+                ),
+            )
+
+        max_bytes = active_settings.max_upload_mb * 1024 * 1024
+        # Read at most max_bytes + 1 so oversized uploads are rejected safely without buffering huge files.
+        image_bytes = await file.read(max_bytes + 1)
+        await file.close()
+
+        canonical_mime = validate_uploaded_image(
+            image_bytes=image_bytes,
+            declared_mime=file.content_type,
+            max_upload_mb=active_settings.max_upload_mb,
+        )
+
+        if active_provider is None:
+            raise ProviderNotConfiguredError()
+
+        safe_name = sanitize_filename(file.filename)
+        return active_provider.extract(
+            image_bytes=image_bytes,
+            mime_type=canonical_mime,
+            domain=domain,  # type: ignore[arg-type]
+            filename=safe_name,
+        )
+
+    @application.post("/api/state", response_model=DiagramStateResponse)
+    def post_state(diagram: DiagramDocument) -> DiagramStateResponse:
+        if diagram.domain == "physics_circuit":
+            circuit_state = evaluate_circuit_state(diagram)
+            return DiagramStateResponse(
+                domain="physics_circuit",
+                loop_wired=circuit_state.loop_wired,
+                all_switches_closed=circuit_state.all_switches_closed,
+                bulbs_on=circuit_state.bulbs_on,
+                switch_states=circuit_state.switch_states,
+                bulb_states=circuit_state.bulb_states,
+            )
+        return DiagramStateResponse(
+            domain="biology_food_web",
+            organism_count=len(diagram.nodes),
+            relationship_count=len(diagram.edges),
         )
 
     @application.get("/api/examples", response_model=list[ExampleSummary])

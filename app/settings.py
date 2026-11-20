@@ -23,6 +23,7 @@ class Settings:
     ai_provider: str = "none"
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.5-flash"
+    ai_timeout_seconds: float = 30.0
     max_upload_mb: int = 5
     fixtures_dir: Path = FIXTURES_DIR
     schema_path: Path = DIAGRAM_SCHEMA_PATH
@@ -43,6 +44,12 @@ def load_settings() -> Settings:
     gemini_api_key = os.getenv("GEMINI_API_KEY", "").strip()
     gemini_model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash"
 
+    raw_timeout = os.getenv("AI_TIMEOUT_SECONDS", "30").strip()
+    try:
+        ai_timeout_seconds = max(5.0, float(raw_timeout))
+    except ValueError:
+        ai_timeout_seconds = 30.0
+
     raw_max_mb = os.getenv("MAX_UPLOAD_MB", "5").strip()
     try:
         max_upload_mb = max(1, int(raw_max_mb))
@@ -53,5 +60,6 @@ def load_settings() -> Settings:
         ai_provider=ai_provider,
         gemini_api_key=gemini_api_key,
         gemini_model=gemini_model,
+        ai_timeout_seconds=ai_timeout_seconds,
         max_upload_mb=max_upload_mb,
     )

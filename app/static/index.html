@@ -39,7 +39,7 @@
       </button>
     </div>
 
-    <!-- Welcome & Domain Selection -->
+    <!-- Welcome, Pre-annotated Examples, & Analyze Your Own Diagram -->
     <section id="welcome-section" class="welcome-section" aria-labelledby="welcome-heading">
       <div class="hero-block">
         <p class="eyebrow">Accessible Interactive STEM Learning</p>
@@ -51,9 +51,11 @@
         </p>
         <div class="info-callout" role="note">
           <p>
-            <strong>Demo mode notice:</strong> The examples below are
+            <strong>Honest mode separation:</strong> Bundled examples are labeled
             <span class="highlight-text">Pre-annotated demo — no AI used</span>.
-            All interactions work with a keyboard and screen reader. Voice output is
+            Uploaded diagrams use live AI extraction labeled
+            <span class="highlight-text">AI-generated — review required</span>
+            and must be validated and confirmed before simulation. Voice output is
             optional and not required.
           </p>
         </div>
@@ -61,9 +63,9 @@
 
       <section aria-labelledby="modules-heading" class="modules-section">
         <div class="section-header">
-          <h2 id="modules-heading">Choose a Learning Module</h2>
+          <h2 id="modules-heading">Pre-Annotated Learning Modules</h2>
           <p class="section-subtitle">
-            Select a verified example diagram to start exploring immediately.
+            Select a verified example diagram to start exploring immediately without an API key.
           </p>
         </div>
 
@@ -76,17 +78,162 @@
         </div>
       </section>
 
-      <section aria-labelledby="ai-notice-heading" class="future-ai-panel">
-        <h2 id="ai-notice-heading">Image Upload &amp; Live AI Analysis</h2>
-        <p id="ai-status-text">
-          Live image extraction with an external vision provider is scheduled for a
-          later phase and is not enabled yet. Use the pre-annotated Physics and Biology
-          examples above to explore the verified simulation engines.
+      <!-- Phase 3: Analyze Your Own Diagram -->
+      <section aria-labelledby="analyze-heading" class="panel analyze-panel">
+        <div class="section-header">
+          <span class="badge badge-ai-review">Live AI Extraction</span>
+          <h2 id="analyze-heading">Analyze Your Own Diagram</h2>
+          <p id="ai-status-text" class="section-subtitle">
+            Upload a simple Physics series circuit or Biology food web image to extract
+            a reviewable semantic graph with Google Gemini.
+          </p>
+        </div>
+
+        <form id="analyze-form" class="analyze-form" novalidate>
+          <div class="form-row">
+            <div class="form-field">
+              <label for="analyze-domain-select">Scientific domain</label>
+              <select id="analyze-domain-select" name="domain" required>
+                <option value="physics_circuit">Physics — Single-Loop Series Circuit</option>
+                <option value="biology_food_web">Biology — Directed Food Web</option>
+              </select>
+              <p class="field-hint">
+                Choosing the domain helps the AI apply strict scientific constraints.
+              </p>
+            </div>
+
+            <div class="form-field">
+              <label for="diagram-file-input">Diagram image (PNG, JPEG, or WEBP, max 5 MB)</label>
+              <input
+                type="file"
+                id="diagram-file-input"
+                name="file"
+                accept="image/png,image/jpeg,image/webp"
+                required
+              />
+              <p class="field-hint">
+                Uploaded images are processed in memory and are not saved on the server.
+              </p>
+            </div>
+          </div>
+
+          <div class="consent-box">
+            <input type="checkbox" id="analyze-consent-checkbox" name="consent" required />
+            <label for="analyze-consent-checkbox">
+              I consent to sending this uploaded image to the configured external AI
+              provider (Google Gemini) for diagram extraction, and I confirm it does not
+              contain personal or sensitive information.
+            </label>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" id="analyze-submit-btn" class="btn btn-primary">
+              Analyze with Gemini
+            </button>
+            <span id="analyze-progress" class="progress-text" aria-live="polite"></span>
+          </div>
+        </form>
+      </section>
+    </section>
+
+    <!-- Phase 3: Dedicated Human Review & Correction Workspace -->
+    <section
+      id="review-section"
+      class="review-section"
+      aria-labelledby="review-heading"
+      hidden
+    >
+      <div class="explorer-topbar">
+        <div class="explorer-title-group">
+          <button type="button" id="review-cancel-btn" class="btn btn-secondary">
+            Cancel &amp; return to home
+          </button>
+          <div class="title-and-badges">
+            <h2 id="review-heading" tabindex="-1">Review AI-Generated Diagram</h2>
+            <div class="badge-row" aria-label="AI review status">
+              <span class="badge badge-ai-review">AI-generated — review required</span>
+              <span id="review-domain-badge" class="badge badge-domain">Domain</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <section class="panel review-status-panel" aria-labelledby="review-validation-heading">
+        <h3 id="review-validation-heading">Validation &amp; AI Warnings</h3>
+        <p id="review-validation-summary" class="summary-text"></p>
+        <div id="review-warnings-block" hidden>
+          <h4>AI Warnings</h4>
+          <ul id="review-warnings-list" class="warning-list"></ul>
+        </div>
+        <div id="review-errors-block" hidden>
+          <h4>Validation Errors (Must Fix Before Confirming)</h4>
+          <ul id="review-errors-list" class="error-list"></ul>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="review-meta-heading">
+        <h3 id="review-meta-heading">Diagram Details</h3>
+        <div class="form-field">
+          <label for="review-title-input">Diagram title</label>
+          <input type="text" id="review-title-input" />
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="review-nodes-heading">
+        <div class="panel-header-row">
+          <div>
+            <h3 id="review-nodes-heading">Extracted Objects</h3>
+            <p class="panel-hint">
+              Check every label, type, and description. Remove any misidentified symbol.
+            </p>
+          </div>
+          <button type="button" id="review-add-node-btn" class="btn btn-secondary btn-sm">
+            Add object
+          </button>
+        </div>
+        <div id="review-nodes-list" class="editor-rows">
+          <!-- Populated dynamically -->
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="review-edges-heading">
+        <div class="panel-header-row">
+          <div>
+            <h3 id="review-edges-heading">Extracted Connections</h3>
+            <p id="review-edges-hint" class="panel-hint"></p>
+          </div>
+          <button type="button" id="review-add-edge-btn" class="btn btn-secondary btn-sm">
+            Add connection
+          </button>
+        </div>
+        <div id="review-edges-list" class="editor-rows">
+          <!-- Populated dynamically -->
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="review-domain-heading">
+        <h3 id="review-domain-heading">Domain-Specific Verification</h3>
+        <div id="review-domain-controls">
+          <!-- Populated dynamically for Physics sequence/switch or Biology arrow confirmation -->
+        </div>
+      </section>
+
+      <section class="panel review-actions-panel" aria-label="Review confirmation actions">
+        <div class="experiment-actions">
+          <button type="button" id="review-validate-btn" class="btn btn-secondary">
+            Validate Diagram
+          </button>
+          <button type="button" id="review-confirm-btn" class="btn btn-primary" disabled>
+            Confirm &amp; Open Explorer
+          </button>
+        </div>
+        <p id="review-confirm-hint" class="panel-hint">
+          Simulation remains disabled until the diagram passes validation and you explicitly confirm it.
         </p>
       </section>
     </section>
 
-    <!-- Diagram Explorer Workspace -->
+    <!-- Diagram Explorer Workspace (Shared by Pre-annotated Demos & Confirmed AI Diagrams) -->
     <section
       id="explorer-section"
       class="explorer-section"
@@ -104,7 +251,9 @@
               <span id="source-badge" class="badge badge-demo">
                 Pre-annotated demo — no AI used
               </span>
-              <span id="review-badge" class="badge badge-confirmed">Confirmed</span>
+              <span id="review-badge" class="badge badge-confirmed">
+                Confirmed diagram — ready to explore
+              </span>
               <span id="domain-badge" class="badge badge-domain">Domain</span>
             </div>
           </div>
@@ -126,7 +275,7 @@
         <p id="diagram-summary" class="summary-text"></p>
         <p id="domain-convention" class="convention-note"></p>
         <dl id="diagram-stats" class="stats-grid" aria-label="Diagram summary statistics">
-          <!-- Populated dynamically -->
+          <!-- Populated dynamically from explicit backend state -->
         </dl>
       </section>
 
@@ -224,7 +373,7 @@
     <div class="container footer-inner">
       <p>
         <strong>SenseGraph</strong> — Accessible STEM diagram learning prototype.
-        Deterministic Python simulation engines for Physics P0 and Biology P0.
+        Deterministic Python simulation engines with human-reviewed AI extraction.
       </p>
       <p class="footer-note">
         Keyboard tips: use Tab and Shift+Tab to move between controls, and Enter or

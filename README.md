@@ -2,37 +2,48 @@
 
 **Making STEM Diagrams Accessible, Interactive, and Understandable.**
 
-SenseGraph is an accessible interactive STEM diagram learning prototype designed for blind and visually impaired students. Structured science diagrams are represented as a **verified semantic graph** (`nodes` + `edges` + domain payload) so learners can explore objects and relationships using a keyboard and screen reader, then run deterministic domain-specific experiments with plain-language feedback.
+SenseGraph is an accessible interactive STEM diagram learning prototype designed for blind and visually impaired students. Structured science diagrams are converted into a **human-reviewable semantic graph** (`nodes` + `edges` + domain payload) so learners can explore objects and relationships using a keyboard and screen reader, then run deterministic domain-specific experiments with plain-language feedback.
 
 - **Primary hackathon track:** Education
 - **Related social impact:** Community Impact
-- **Current status:** Phase 1 (Core Backend & Simulation Engines) and Phase 2 (Accessible Frontend) implemented and verified. Phase 3 (Live Gemini Vision extraction & human review editor) is planned next.
+- **Current status:** Phase 1 (Core Backend & Simulation Engines), Phase 2 (Accessible Frontend), and Phase 3 (Gemini Vision Extraction & Human Review UI) implemented and verified.
 
 ---
 
 ## Implemented Features
 
-### Backend (FastAPI + Pydantic + Pure Python Engines)
+### Backend (FastAPI + Pydantic + Pure Python Engines + Google Gemini)
 - **Semantic Graph Contract:** Strict Pydantic v2 models matching [contracts/diagram.schema.json](contracts/diagram.schema.json).
 - **Physics P0 (`physics_circuit`):** Qualitative single-loop series circuit engine (1 battery, 1 switch, 1–2 bulbs). Derives wire loop connectivity from edges, toggles switch state, computes qualitative bulb ON/OFF outcomes, and rejects unsupported topologies or unreviewed diagrams.
 - **Biology P0 (`biology_food_web`):** Directed food-web engine (`food/prey -> consumer/predator`). Exposes incoming/outgoing feeding relationships, energy paths, organism removal with exact removed/remaining edge reporting, and explicit non-prediction disclaimers.
+- **Gemini Vision Extraction (`app/services/ai_vision.py`):**
+  - Replaceable `VisionProvider` abstraction with `GeminiVisionProvider` using the official `google-genai` SDK.
+  - Validates uploaded PNG/JPEG/WEBP files (<= 5 MB) via Pillow byte-level decoding, never persists uploaded images by default, never logs raw image bytes or API keys, and treats embedded image text strictly as untrusted data.
+  - Always returns `source.mode="ai"`, `source.provider="gemini"`, and `review_status="unreviewed"` so human verification is mandatory before simulation.
 - **Stateless REST API:**
   - `GET /api/health`
   - `GET /api/examples`
   - `GET /api/examples/{example_id}`
+  - `POST /api/analyze` (`multipart/form-data`: `file`, `domain`, `consent`)
   - `POST /api/validate`
   - `POST /api/confirm`
+  - `POST /api/state` (explicit backend-calculated circuit/food-web state)
   - `POST /api/simulate`
 
 ### Accessible Frontend (Semantic HTML5 + CSS + Vanilla JavaScript)
 - Served directly by FastAPI at `http://127.0.0.1:8000` (no Node build step required).
-- **Honest provenance labeling:** Bundled examples are clearly labeled **Pre-annotated demo — no AI used**. No AI extraction is faked.
+- **Clear provenance badges:**
+  - **Pre-annotated demo — no AI used** for bundled fixtures
+  - **AI-generated — review required** during human verification
+  - **Confirmed diagram — ready to explore** in the interactive explorer
+- **Analyze Your Own Diagram & Human Review Workflow:**
+  - Upload PNG/JPEG/WEBP -> Choose Domain -> Explicit external-provider consent -> Analyze with Gemini -> Review AI warnings & validation errors -> Edit labels, types, connections, Physics loop sequence, or Biology arrow directions -> Validate -> Confirm -> Explore & Experiment.
 - **Keyboard-first & screen-reader-oriented UI:**
   - Semantic landmarks (`<header>`, `<main>`, `<footer>`, hierarchical `<h1>`–`<h4>`), skip-to-content link, and high-contrast visible focus indicators.
-  - Native `<button>` controls for all component selection, neighbor navigation, experiment actions, and reset (no keyboard traps, no click-only `<div>` controls).
-  - Polite live announcements (`role="status"` / `aria-live="polite"`) and explicit text lists of all relationships so every task works without relying on visual diagrams or color alone.
-  - Supplementary visual preview for sighted users with descriptive alt text linked to the textual overview.
-  - All simulation state changes come from `POST /api/simulate`; no electrical math is implemented in JavaScript. Reset restores an immutable client-side baseline.
+  - Native `<button>` controls and accessible `<label>`-bound form inputs (no keyboard traps).
+  - Deliberate focus preservation/restoration across component selection, neighbor jumps, switch toggling, organism removal, experiment reset, and AI confirmation.
+  - Polite live announcements (`role="status"` / `aria-live="polite"`) and explicit text lists of all relationships.
+  - Bulb and switch states are read directly from `POST /api/state` (zero electrical calculations or summary-text parsing in JavaScript).
 
 ---
 
@@ -52,11 +63,29 @@ Then open in your browser:
 - **API documentation (OpenAPI):** `http://127.0.0.1:8000/docs`
 - **Health endpoint:** `http://127.0.0.1:8000/api/health`
 
+### Enabling Live Gemini Vision Analysis (Optional)
+
+By default, `.env.example` sets `AI_PROVIDER=none`, so both pre-annotated demo modules work immediately with no API key.
+
+To enable live image extraction on your local machine:
+1. Edit your local `.env` file (never commit `.env` to git):
+   ```dotenv
+   AI_PROVIDER=gemini
+   GEMINI_API_KEY=your_actual_key_here
+   GEMINI_MODEL=gemini-2.5-flash
+   AI_TIMEOUT_SECONDS=30
+   MAX_UPLOAD_MB=5
+   ```
+2. Restart `uvicorn`. The header badge will update to **Gemini Vision configured**.
+3. **Data-sharing notice:** Uploaded images are sent to Google's Gemini API only after you explicitly check the consent box. Avoid uploading personal or sensitive content. Images are processed in memory and not persisted by SenseGraph.
+
 ### Running Automated Tests
 
 ```powershell
 python -m pytest -v
 ```
+
+Automated tests use mocked `VisionProvider` responses and never call the live Gemini API.
 
 ---
 
@@ -74,13 +103,14 @@ python -m pytest -v
 
 ## Honest Limitations & Accessibility Notes
 
-- **Pre-annotated demos vs. live AI:** The two bundled examples (`physics_series`, `biology_food_web`) are curated fixtures, not evidence of live AI image extraction. Live image upload and Gemini Vision extraction will be added in Phase 3.
+- **Pre-annotated demos vs. live AI:** The two bundled examples (`physics_series`, `biology_food_web`) are curated fixtures, not evidence of live AI image extraction.
+- **Vision extraction accuracy:** Multimodal vision models can misread symbols, wires, or arrow directions. Every AI output starts as `unreviewed`, requires human verification/editing, and cannot be simulated until it passes deterministic validation and explicit confirmation.
 - **Domain scope:** Physics covers only qualitative single-loop series circuits (no voltage, current, resistance, or parallel circuits). Biology reports only graph relationship changes when an organism is removed (no population or extinction predictions).
-- **Assistive technology testing:** Semantic landmarks, skip link, live regions, and static asset serving are verified by automated tests, **not** yet audited with live Chrome browser automation, NVDA, JAWS, VoiceOver, or blind user study participants. No WCAG compliance certification is claimed.
-- **Voice / TTS:** Optional and intentionally not required; the interface relies on standard browser/screen-reader text output.
+- **Assistive technology testing:** Semantic landmarks, skip link, live regions, focus handling code, and backend/API/AI-mock behavior are verified by automated tests, **not** yet audited with live NVDA, JAWS, VoiceOver, or blind user study participants. No WCAG compliance certification is claimed.
+- **Voice / TTS:** Optional and intentionally not required.
 
 ---
 
-## AI Coding Assistance Disclosure
+## AI Coding Assistance & External Services Disclosure
 
-This prototype was built with AI coding assistance (Google Antigravity / Gemini models) following the project specifications in `docs/` and `AGENTS.md`. All bundled sample diagrams are original fixtures in `fixtures/`. Never commit `.env` or API keys.
+This prototype was built with AI coding assistance (Google Antigravity / Gemini models) following the project specifications in `docs/` and `AGENTS.md`. Live image extraction uses the official `google-genai` Python SDK when configured by the user. All bundled sample diagrams are original fixtures in `fixtures/`. Never commit `.env` or API keys.
