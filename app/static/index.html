@@ -13,90 +13,81 @@
     <div class="container header-inner">
       <div class="brand-group">
         <a href="#main-content" class="brand-name" id="brand-home-link">SenseGraph</a>
-        <p class="brand-tagline">Explore STEM diagrams beyond sight</p>
+        <p class="brand-tagline">Non-visual interactive STEM learning</p>
       </div>
-      <div class="header-controls">
-        <nav class="experience-switcher" aria-label="Interface experience">
-          <button
-            type="button"
-            id="exp-student-btn"
-            class="btn btn-primary btn-sm"
-            aria-pressed="true"
-          >
-            Student Experience
-          </button>
-          <button
-            type="button"
-            id="exp-educator-btn"
-            class="btn btn-secondary btn-sm"
-            aria-pressed="false"
-          >
-            Educator / Advanced
-          </button>
-        </nav>
-        <div class="header-status" aria-label="Application mode">
-          <span id="health-badge" class="badge badge-neutral">Checking backend status…</span>
+      <!-- Calm Redesign: Move secondary settings & Educator switcher into a collapsible drawer -->
+      <details id="student-settings-drawer" class="settings-drawer">
+        <summary class="btn btn-secondary btn-sm settings-drawer-toggle">
+          Audio Settings &amp; Educator Mode
+        </summary>
+        <div class="settings-drawer-body">
+          <nav class="experience-switcher" aria-label="Interface experience">
+            <button
+              type="button"
+              id="exp-student-btn"
+              class="btn btn-primary btn-sm"
+              aria-pressed="true"
+            >
+              Student Experience
+            </button>
+            <button
+              type="button"
+              id="exp-educator-btn"
+              class="btn btn-secondary btn-sm"
+              aria-pressed="false"
+            >
+              Educator / Advanced
+            </button>
+          </nav>
+
+          <div class="audio-bar" aria-label="Spoken guidance and audio settings">
+            <div class="audio-primary-controls">
+              <button type="button" id="audio-start-btn" class="btn btn-teal btn-sm" aria-pressed="false">
+                Start spoken guidance
+              </button>
+              <button type="button" id="audio-pause-btn" class="btn btn-secondary btn-sm" disabled>
+                Pause
+              </button>
+              <button type="button" id="audio-stop-btn" class="btn btn-ghost btn-sm" disabled>
+                Stop
+              </button>
+              <button type="button" id="audio-repeat-btn" class="btn btn-ghost btn-sm">
+                Repeat
+              </button>
+            </div>
+            <div class="audio-settings-controls">
+              <div class="tts-rate-group">
+                <label for="audio-rate-select">Speed</label>
+                <select id="audio-rate-select">
+                  <option value="0.8">0.8x</option>
+                  <option value="1" selected>1.0x</option>
+                  <option value="1.25">1.25x</option>
+                  <option value="1.5">1.5x</option>
+                </select>
+              </div>
+              <div class="tts-rate-group">
+                <label for="audio-voice-select">Voice</label>
+                <select id="audio-voice-select">
+                  <option value="">Default browser voice</option>
+                </select>
+              </div>
+              <label class="shortcut-toggle-label">
+                <input type="checkbox" id="voice-shortcut-checkbox" checked />
+                Enable Alt+Shift+V shortcut for Speak Now
+              </label>
+              <span id="audio-mode-status" class="audio-status-text">
+                Listening mode: Screen reader ready (browser voice off)
+              </span>
+            </div>
+          </div>
+
+          <div class="header-status" aria-label="Application mode">
+            <span id="health-badge" class="badge badge-neutral">Checking backend status…</span>
+          </div>
         </div>
-      </div>
+      </details>
     </div>
   </header>
-
-  <!-- Phase 14: Optional Audio-First Guidance Bar (Off by default — never autoplays) -->
-  <section class="audio-bar" aria-label="Spoken guidance and listening options">
-    <div class="container audio-bar-inner">
-      <div class="audio-primary-controls">
-        <button type="button" id="audio-start-btn" class="btn btn-teal btn-sm" aria-pressed="false">
-          Start spoken guidance
-        </button>
-        <button type="button" id="audio-pause-btn" class="btn btn-secondary btn-sm" disabled>
-          Pause
-        </button>
-        <button type="button" id="audio-stop-btn" class="btn btn-ghost btn-sm" disabled>
-          Stop
-        </button>
-        <button type="button" id="audio-repeat-btn" class="btn btn-ghost btn-sm">
-          Repeat
-        </button>
-        <button
-          type="button"
-          id="voice-ptt-btn"
-          class="btn btn-primary btn-sm"
-          aria-pressed="false"
-        >
-          Speak Command
-        </button>
-        <button
-          type="button"
-          id="voice-cancel-btn"
-          class="btn btn-ghost btn-sm"
-          disabled
-        >
-          Cancel Listening
-        </button>
-        <span id="voice-mic-status" class="badge badge-neutral">Mic: Ready</span>
-      </div>
-      <div class="audio-settings-controls">
-        <div class="tts-rate-group">
-          <label for="audio-rate-select">Speed</label>
-          <select id="audio-rate-select">
-            <option value="0.8">0.8x</option>
-            <option value="1" selected>1.0x</option>
-            <option value="1.25">1.25x</option>
-            <option value="1.5">1.5x</option>
-          </select>
-        </div>
-        <div class="tts-rate-group">
-          <label for="audio-voice-select">Voice</label>
-          <select id="audio-voice-select">
-            <option value="">Default browser voice</option>
-          </select>
-        </div>
-        <span id="audio-mode-status" class="audio-status-text">
-          Listening mode: Screen reader ready (browser voice off)
-        </span>
-      </div>
-    </div>
-  </section>
 
   <main id="main-content" class="container main-content" tabindex="-1">
     <!-- Polite live region for screen-reader announcements -->
@@ -147,12 +138,40 @@
         </p>
       </section>
 
-      <!-- Phase 15: Conversational Voice & Keyboard Command Bar -->
+      <!-- Phase 15 + Non-Visual Redesign: Calm Conversational Voice & Keyboard Bar (Hidden on Welcome) -->
       <section
         id="voice-command-panel"
         class="voice-command-panel"
-        aria-label="Ask a question or give a voice command"
+        aria-label="Spoken conversation and keyboard command bar"
+        hidden
       >
+        <div class="voice-turn-controls">
+          <button
+            type="button"
+            id="voice-guided-turn-btn"
+            class="btn btn-teal btn-sm"
+            aria-pressed="false"
+          >
+            Start Guided Conversation
+          </button>
+          <button
+            type="button"
+            id="voice-ptt-btn"
+            class="btn btn-primary btn-sm"
+            aria-pressed="false"
+          >
+            Speak Now (Alt+Shift+V)
+          </button>
+          <button
+            type="button"
+            id="voice-cancel-btn"
+            class="btn btn-ghost btn-sm"
+            disabled
+          >
+            Cancel Listening
+          </button>
+          <span id="voice-mic-status" class="badge badge-neutral">Mic: Ready</span>
+        </div>
         <form id="voice-text-form" class="voice-text-form">
           <label for="voice-text-input" class="sr-only">
             Type a command or science question (keyboard alternative to microphone)
@@ -161,7 +180,7 @@
             type="text"
             id="voice-text-input"
             class="voice-text-input"
-            placeholder="Ask a question or say a command (e.g., 'Physics', 'Next', 'Why is the bulb off?')"
+            placeholder="Or type a command / question (e.g., 'Next', 'Explain more', 'Why is the bulb off?')"
             autocomplete="off"
           />
           <button type="submit" id="voice-text-submit-btn" class="btn btn-secondary btn-sm">
@@ -173,8 +192,8 @@
           <p id="voice-reply-line" class="voice-reply-line"></p>
         </div>
         <p class="voice-privacy-note">
-          Microphone is optional and push-to-talk only (never records automatically).
-          When enabled, browser speech recognition may send audio to your browser vendor's speech service.
+          Microphone is optional, never records on page load, and stops automatically after 8 seconds of silence.
+          Browser speech recognition may send audio to your browser vendor's speech service.
         </p>
       </section>
 

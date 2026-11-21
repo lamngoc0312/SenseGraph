@@ -1,25 +1,54 @@
-/* SenseGraph Phase 15 — Modular Conversational Voice Layer
+/* SenseGraph Phase 15 + Non-Visual Redesign — Modular Conversational Voice Layer
  *
  * Architecture:
- *  - SpeechInputAdapter: feature-detected browser SpeechRecognition (push-to-talk only, never auto-starts)
+ *  - SpeechInputAdapter: feature-detected browser SpeechRecognition with bounded listening timeout
  *  - SpeechOutputAdapter: optional browser SpeechSynthesis with feedback-loop protection
  *  - VoiceCommandInterpreter: controlled backend intent parser (/api/voice/interpret)
  *  - LearningSessionController: safe allowlisted bridge to verified SenseGraph student actions
- *  - ConversationController: orchestrates push-to-talk, state machine, transcript, and replies
+ *  - ConversationController: orchestrates Push-to-Talk AND optional Guided Turn-Taking
+ *    (TTS finishes -> gentle listening cue -> bounded listening window -> interpret -> reply)
  */
 
 (() => {
   "use strict";
 
+  function playListeningCue() {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(520, now);
+      osc.frequency.linearRampToValueAtTime(660, now + 0.11);
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(0.08, now + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.15);
+      osc.onended = () => {
+        if (typeof ctx.close === "function") ctx.close().catch(() => {});
+      };
+    } catch {
+      // AudioContext unavailable or blocked; degrade silently
+    }
+  }
+
   class SpeechInputAdapter {
     constructor(options = {}) {
       this.lang = options.lang || "en-US";
+      this.listeningTimeoutMs = options.listeningTimeoutMs || 8000;
       this.onStateChange = options.onStateChange || (() => {});
       this.onResult = options.onResult || (() => {});
       this.onError = options.onError || (() => {});
       this._recognition = null;
       this._isListening = false;
       this._cancelled = false;
+      this._timeoutHandle = null;
     }
 
     static isSupported() {
@@ -34,11 +63,18 @@
       return this._isListening;
     }
 
+    _clearTimer() {
+      if (this._timeoutHandle) {
+        window.clearTimeout(this._timeoutHandle);
+        this._timeoutHandle = null;
+      }
+    }
+
     start() {
       if (!SpeechInputAdapter.isSupported()) {
         this.onStateChange("unsupported");
         this.onError(
-          "Browser speech recognition is not supported here. Use keyboard buttons or type a command instead."
+          "Browser speech recognition is unavailable here. Use keyboard controls or type a command instead."
         );
         return false;
       }
@@ -60,9 +96,28 @@
       rec.onstart = () => {
         this._isListening = true;
         this.onStateChange("listening");
+        playListeningCue();
+        // Enforce bounded listening window — never listen indefinitely in background.
+        this._clearTimer();
+        this._timeoutHandle = window.setTimeout(() => {
+          if (this._isListening) {
+            this._cancelled = true;
+            try {
+              rec.stop();
+            } catch {
+              // Ignore stop error
+            }
+            this._isListening = false;
+            this.onStateChange("ready");
+            this.onError(
+              "Listening timed out after 8 seconds of silence. Press Speak Now or use keyboard controls."
+            );
+          }
+        }, this.listeningTimeoutMs);
       };
 
       rec.onresult = (event) => {
+        this._clearTimer();
         this._isListening = false;
         if (this._cancelled) return;
         const transcript =
@@ -82,6 +137,7 @@
       };
 
       rec.onerror = (event) => {
+        this._clearTimer();
         this._isListening = false;
         if (this._cancelled && event.error === "aborted") {
           this.onStateChange("ready");
@@ -94,7 +150,7 @@
           "service-not-allowed":
             "Speech recognition service is blocked by this browser. Use keyboard controls or type your command.",
           "no-speech":
-            "No speech detected. Press Speak again when you are ready.",
+            "No speech detected. Press Speak Now when you are ready, or use the keyboard.",
           network:
             "Speech recognition requires a network connection in this browser. Use keyboard controls or type your command.",
           aborted: "Listening stopped.",
@@ -106,6 +162,7 @@
       };
 
       rec.onend = () => {
+        this._clearTimer();
         const wasListening = this._isListening;
         this._isListening = false;
         if (wasListening && !this._cancelled) {
@@ -117,6 +174,7 @@
         rec.start();
         return true;
       } catch (err) {
+        this._clearTimer();
         this._isListening = false;
         this.onStateChange("error");
         this.onError(`Could not start microphone: ${err.message}`);
@@ -125,6 +183,7 @@
     }
 
     stop() {
+      this._clearTimer();
       if (this._recognition && this._isListening) {
         try {
           this._recognition.stop();
@@ -136,6 +195,7 @@
     }
 
     cancel() {
+      this._clearTimer();
       this._cancelled = true;
       if (this._recognition) {
         try {
@@ -220,6 +280,10 @@
       const params = result.parameters || {};
 
       switch (action) {
+        case "stop_guided_voice":
+          return h.stopGuidedVoice ? h.stopGuidedVoice() : result.spoken_response;
+        case "where_am_i":
+          return h.whereAmI ? h.whereAmI() : result.spoken_response;
         case "start_learning":
           return h.startLearning ? h.startLearning() : result.spoken_response;
         case "continue_learning":
@@ -283,11 +347,14 @@
       this.interpreter = config.interpreter;
       this.sessionController = config.sessionController;
       this.micState = SpeechInputAdapter.isSupported() ? "ready" : "unsupported";
+      this.guidedTurnTaking = false; // Strictly OFF by default — never auto-starts
+      this._pendingTurnTimer = null;
       this.lastTranscript = "";
       this.lastReply = "";
       this.lastError = "";
 
       this.input = new SpeechInputAdapter({
+        listeningTimeoutMs: 8000,
         onStateChange: (nextState) => {
           this.micState = nextState;
           this.emitUi();
@@ -297,31 +364,78 @@
         },
         onError: (msg) => {
           this.lastError = msg;
+          // Stop automatic turn loop on permission denial or error so we never loop endlessly
+          this.guidedTurnTaking = false;
+          this._clearPendingTurn();
           this.emitUi();
           this.announceResponse(msg);
         },
       });
     }
 
+    _clearPendingTurn() {
+      if (this._pendingTurnTimer) {
+        window.clearTimeout(this._pendingTurnTimer);
+        this._pendingTurnTimer = null;
+      }
+    }
+
     emitUi() {
       this.onUiUpdate({
         micState: this.micState,
         supported: SpeechInputAdapter.isSupported(),
+        guidedTurnTaking: this.guidedTurnTaking,
         lastTranscript: this.lastTranscript,
         lastReply: this.lastReply,
         lastError: this.lastError,
       });
     }
 
+    startGuidedConversation(introText = "") {
+      if (!SpeechInputAdapter.isSupported()) {
+        this.guidedTurnTaking = false;
+        this.lastError =
+          "Guided voice input requires Chrome or Edge speech recognition. Falling back to keyboard and spoken guidance.";
+        this.emitUi();
+        this.announceResponse(this.lastError);
+        return false;
+      }
+      this.guidedTurnTaking = true;
+      this.lastError = "";
+      this.emitUi();
+      if (introText) {
+        this.announceResponse(introText);
+      } else {
+        this.startListening();
+      }
+      return true;
+    }
+
+    stopGuidedConversation(silent = false) {
+      this.guidedTurnTaking = false;
+      this._clearPendingTurn();
+      this.input.cancel();
+      this.micState = SpeechInputAdapter.isSupported() ? "ready" : "unsupported";
+      this.emitUi();
+      if (!silent) {
+        this.announceResponse(
+          "Guided voice conversation paused. Use keyboard controls or press Speak Now anytime."
+        );
+      }
+    }
+
     startListening() {
       // Critical speech safety: stop app TTS before opening microphone
       // so SenseGraph never transcribes its own voice.
+      this._clearPendingTurn();
       this.stopAppSpeech();
       this.lastError = "";
       this.input.start();
     }
 
     cancelListening() {
+      this.guidedTurnTaking = false;
+      this._clearPendingTurn();
       this.input.cancel();
       this.lastError = "";
       this.micState = SpeechInputAdapter.isSupported() ? "ready" : "unsupported";
@@ -330,23 +444,43 @@
     }
 
     notifySpeaking(isSpeaking) {
-      if (isSpeaking && this.input.isListening()) {
-        this.input.cancel();
+      if (isSpeaking) {
+        this._clearPendingTurn();
+        if (this.input.isListening()) {
+          this.input.cancel();
+        }
       }
       if (!SpeechInputAdapter.isSupported()) {
         this.micState = "unsupported";
-      } else if (isSpeaking) {
-        this.micState = "speaking";
-      } else if (this.micState === "speaking") {
-        this.micState = "ready";
+        this.emitUi();
+        return;
       }
-      this.emitUi();
+      if (isSpeaking) {
+        this.micState = "speaking";
+        this.emitUi();
+        return;
+      }
+
+      if (this.micState === "speaking") {
+        this.micState = "ready";
+        this.emitUi();
+        // Guided Turn-Taking: once TTS finishes cleanly, pause 350ms then open one bounded listening turn.
+        if (this.guidedTurnTaking) {
+          this._clearPendingTurn();
+          this._pendingTurnTimer = window.setTimeout(() => {
+            if (this.guidedTurnTaking && this.micState === "ready") {
+              this.input.start();
+            }
+          }, 350);
+        }
+      }
     }
 
     async handleTranscript(rawText) {
       const transcript = (rawText || "").trim();
       if (!transcript) return;
 
+      this._clearPendingTurn();
       this.stopAppSpeech();
       this.lastTranscript = transcript;
       this.lastError = "";
@@ -356,6 +490,9 @@
       try {
         const ctx = this.getContext();
         const result = await this.interpreter.interpret(transcript, ctx);
+        if (result.action === "stop_guided_voice") {
+          this.guidedTurnTaking = false;
+        }
         const actionFeedback = await this.sessionController.execute(result);
         const finalReply =
           typeof actionFeedback === "string" && actionFeedback.trim()
@@ -366,11 +503,18 @@
         this.micState = SpeechInputAdapter.isSupported() ? "ready" : "unsupported";
         this.emitUi();
 
-        // Announce reply when the action itself did not already announce a richer step
-        if (result.intent === "clarify" || result.intent === "tutor_question" || result.intent === "select_option" || result.intent === "confirm_no") {
+        if (
+          result.intent === "clarify" ||
+          result.intent === "tutor_question" ||
+          result.intent === "select_option" ||
+          result.intent === "confirm_no" ||
+          result.action === "stop_guided_voice" ||
+          result.action === "where_am_i"
+        ) {
           this.announceResponse(finalReply);
         }
       } catch (err) {
+        this.guidedTurnTaking = false;
         this.lastError = `Could not process command: ${err.message}`;
         this.micState = "error";
         this.emitUi();
@@ -380,6 +524,7 @@
   }
 
   window.SenseGraphVoice = {
+    playListeningCue,
     SpeechInputAdapter,
     SpeechOutputAdapter,
     VoiceCommandInterpreter,

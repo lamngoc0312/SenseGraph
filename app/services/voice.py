@@ -186,6 +186,22 @@ def interpret_voice_command(
         )
 
     # 1. Universal navigation & safety commands
+    if re.search(r"\b(stop listening|pause conversation|stop conversation|end conversation|mute)\b", norm):
+        return VoiceInterpretResponse(
+            transcript=raw,
+            intent="navigate",
+            action="stop_guided_voice",
+            spoken_response="Guided voice conversation paused. You can continue using the keyboard or press Speak Now anytime.",
+        )
+
+    if norm in {"where am i", "where am i?", "what can i do", "what can i do?"}:
+        return VoiceInterpretResponse(
+            transcript=raw,
+            intent="navigate",
+            action="where_am_i",
+            spoken_response="Reading your current location and available choices.",
+        )
+
     if re.search(r"\b(help|what can i say|commands|instructions)\b", norm):
         return VoiceInterpretResponse(
             transcript=raw,

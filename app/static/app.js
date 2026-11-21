@@ -113,6 +113,8 @@
     audioVoiceSelect: document.getElementById("audio-voice-select"),
     audioModeStatus: document.getElementById("audio-mode-status"),
     voicePttBtn: document.getElementById("voice-ptt-btn"),
+    voiceGuidedTurnBtn: document.getElementById("voice-guided-turn-btn"),
+    voiceShortcutCheckbox: document.getElementById("voice-shortcut-checkbox"),
     voiceCancelBtn: document.getElementById("voice-cancel-btn"),
     voiceMicStatus: document.getElementById("voice-mic-status"),
     voiceCommandPanel: document.getElementById("voice-command-panel"),
@@ -3591,6 +3593,9 @@
     const info = window.SenseGraphGuidance.buildContextualGuidance({
       step: state.studentStep,
       voiceEnabled: state.spokenGuidanceEnabled,
+      guidedTurnTaking: Boolean(
+        conversationController && conversationController.guidedTurnTaking
+      ),
       lessonTitle: state.currentLessonMeta
         ? state.currentLessonMeta.title
         : diagram
@@ -4190,8 +4195,20 @@
     dom.voicePttBtn.disabled = !ui.supported || ui.micState === "processing";
     dom.voicePttBtn.setAttribute("aria-pressed", String(ui.micState === "listening"));
     dom.voicePttBtn.textContent =
-      ui.micState === "listening" ? "Listening…" : "Speak Command";
-    dom.voiceCancelBtn.disabled = ui.micState !== "listening";
+      ui.micState === "listening" ? "Listening…" : "Speak Now (Alt+Shift+V)";
+    dom.voiceCancelBtn.disabled = ui.micState !== "listening" && !ui.guidedTurnTaking;
+
+    if (dom.voiceGuidedTurnBtn) {
+      dom.voiceGuidedTurnBtn.disabled = !ui.supported;
+      dom.voiceGuidedTurnBtn.setAttribute("aria-pressed", String(Boolean(ui.guidedTurnTaking)));
+      dom.voiceGuidedTurnBtn.textContent = ui.guidedTurnTaking
+        ? "Stop Guided Conversation"
+        : "Start Guided Conversation";
+      dom.voiceGuidedTurnBtn.className = ui.guidedTurnTaking
+        ? "btn btn-primary btn-sm"
+        : "btn btn-teal btn-sm";
+    }
+    updateContextualGuidance();
 
     if (ui.lastTranscript || ui.lastReply || ui.lastError) {
       dom.voiceTranscriptBox.hidden = false;
@@ -4213,6 +4230,32 @@
 
     const interpreter = new VoiceCommandInterpreter(apiRequest);
     const sessionController = new LearningSessionController({
+      stopGuidedVoice: () => {
+        if (conversationController) conversationController.stopGuidedConversation(true);
+        return "Guided voice conversation paused. Use keyboard controls or press Speak Now anytime.";
+      },
+      whereAmI: () => {
+        if (window.SenseGraphGuidance) {
+          const diagram = state.currentDiagram;
+          const node =
+            diagram && diagram.nodes && diagram.nodes[state.studentCompIdx]
+              ? diagram.nodes[state.studentCompIdx]
+              : null;
+          return window.SenseGraphGuidance.buildSpokenDialogue({
+            step: state.studentStep,
+            voiceEnabled: state.spokenGuidanceEnabled,
+            guidedTurnTaking: Boolean(
+              conversationController && conversationController.guidedTurnTaking
+            ),
+            lessonTitle: state.currentLessonMeta ? state.currentLessonMeta.title : "",
+            compIndex: state.studentCompIdx,
+            compCount: diagram && diagram.nodes ? diagram.nodes.length : 0,
+            compLabel: node ? node.label : "",
+            hasResult: Boolean(state.studentLastResult),
+          });
+        }
+        return state.lastNarrationText || "You are in SenseGraph Student Experience.";
+      },
       startLearning: () => {
         setStudentStep("subjects", true);
         const msg =
@@ -4470,6 +4513,44 @@
         conversationController.cancelListening();
       } else {
         conversationController.startListening();
+      }
+    });
+    if (dom.voiceGuidedTurnBtn) {
+      dom.voiceGuidedTurnBtn.addEventListener("click", () => {
+        if (conversationController.guidedTurnTaking) {
+          conversationController.stopGuidedConversation(false);
+        } else {
+          setSpokenGuidance(
+            true,
+            "Guided voice conversation started. Wait for the soft chime after I finish speaking, then say your choice or say Stop listening anytime."
+          );
+          conversationController.startGuidedConversation("");
+        }
+      });
+    }
+    // Optional non-conflicting keyboard shortcut (Alt+Shift+V) for Speak Now
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && conversationController) {
+        if (
+          conversationController.micState === "listening" ||
+          conversationController.guidedTurnTaking
+        ) {
+          e.preventDefault();
+          conversationController.cancelListening();
+        }
+      }
+      if (
+        e.altKey &&
+        e.shiftKey &&
+        e.key.toLowerCase() === "v" &&
+        (!dom.voiceShortcutCheckbox || dom.voiceShortcutCheckbox.checked)
+      ) {
+        e.preventDefault();
+        if (conversationController.micState === "listening") {
+          conversationController.cancelListening();
+        } else {
+          conversationController.startListening();
+        }
       }
     });
     dom.voiceCancelBtn.addEventListener("click", () => {
