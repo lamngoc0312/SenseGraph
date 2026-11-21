@@ -60,10 +60,10 @@
 ---
 
 ## 4:50 – 5:25 | 7. Live AI Status, Automated Tests & Honest Limitations
-**[Screen: Terminal showing `python -m pytest -v` (82 passed) and `python -m ruff check app tests evaluation` (All checks passed)]**
+**[Screen: Terminal showing `python -m pytest -v` (98 passed) and `python -m ruff check --target-version py311 app tests evaluation` (All checks passed)]**
 > *(Branch A — if you ran a real Gemini API key live before recording: show a 20-second clip of uploading `physics_series.png` → Review AI-Generated Diagram → Validate → Confirm.)*
 >
 > *(Branch B — if recording without a local Gemini API key:)*
-> "Our entire backend, upload security, mocked Gemini Vision review workflow, Guided Learning Lab, and Grounded Tutor are verified by **82 passing automated tests** and GitHub Actions CI.
+> "Our entire backend, 20-lesson validated library, voice command interpreter, upload security, mocked Gemini Vision review workflow, Guided Learning Lab, and Grounded Tutor are verified by **98 passing automated tests** and GitHub Actions CI on Python 3.11 and 3.13.
 >
-> We're candid about what comes next: live Gemini extraction benchmarking with an API key, plus formal NVDA, VoiceOver, and blind-student usability studies following our ethical protocol. Thank you for watching SenseGraph!"
+> We're candid about what comes next: live Gemini extraction benchmarking with an API key, live microphone QA in Chrome/Edge, plus formal NVDA, VoiceOver, and blind-student usability studies following our ethical protocol. Thank you for watching SenseGraph!"

@@ -79,18 +79,24 @@ SenseGraph/
       ai_vision.py          # VisionProvider abstraction, Pillow security, GeminiVisionProvider
       learning.py           # Deterministic Guided Learning Lab across all 5 domains
       tutor.py              # Evidence-Grounded STEM Tutor (6 tools + abstention guard)
+      voice.py              # Controlled conversational voice command interpreter (/api/voice/interpret)
+      library.py            # 20-lesson validated STEM library & Educator JSON package validator
     static/
-      index.html            # Semantic HTML5 UI (Welcome, Review, Explorer, Lab, Tour, Tutor)
+      index.html            # Semantic HTML5 UI (Student Experience + Educator / Advanced Mode)
       styles.css            # High-contrast responsive CSS ([hidden], focus, reduced-motion)
       app.js                # Vanilla JS client, focus management, SVG graphs, optional TTS/sonification
+      js/
+        voice.js            # Modular Push-to-Talk SpeechInputAdapter, SpeechOutputAdapter & ConversationController
+        library.js          # Dynamic 20-lesson catalog, local-only ProgressStore & EducatorPackageTool
+        guidance.js         # Contextual 3-question step guidance (Where / What / How)
   contracts/
     diagram.schema.json     # Authoritative JSON Schema (Draft 2020-12)
   evaluation/
     dataset_manifest.json   # Curated original-asset benchmark manifest
     benchmark.py            # Repeatable precision/recall harness (dry-run & live modes)
   fixtures/                 # 5 curated pre-annotated JSON fixtures + 2 original PNGs
-  tests/                    # 82 automated unit & integration tests across 9 test files
-  docs/                     # Product/technical specs, decisions, user-study protocol, evidence matrix
+  tests/                    # 98 automated unit, integration, & E2E tests across 15 test files
+  docs/                     # Product/technical specs, voice & library guide, decisions, evidence matrix
   submission/               # STEM2Connect Devpost copy, demo script, shot list, checklist
   .github/workflows/ci.yml  # GitHub Actions CI (Python 3.11 & 3.13: ruff + pytest + dry-run)
 ```
@@ -139,14 +145,15 @@ python -m pytest -v
 python -m evaluation.benchmark --mode dry-run
 ```
 - **Observed results:**
-  - **Pytest:** **82 passed** (`0 failed`, `0 warnings`) across 9 test modules (`test_models`, `test_physics`, `test_biology`, `test_api`, `test_ai_vision`, `test_learning`, `test_flowchart`, `test_mathematics`, `test_chemistry`, `test_tutor`, `test_evaluation_and_prod`).
-  - **Ruff:** **All checks passed** (including `SIM102` fix in `app/domains/flowchart.py`).
+  - **Pytest:** **98 passed** (`0 failed`, `0 warnings`) across 15 test modules (`test_models`, `test_physics`, `test_biology`, `test_api`, `test_ai_vision`, `test_learning`, `test_flowchart`, `test_mathematics`, `test_chemistry`, `test_tutor`, `test_evaluation_and_prod`, `test_ux_phase14`, `test_voice_phase15`, `test_library_phase16`, `test_e2e_phase17`).
+  - **Ruff:** **All checks passed** (`--target-version py311`).
+  - **JavaScript syntax:** `node --check` passed on `voice.js`, `library.js`, `guidance.js`, and `app.js`.
   - **Benchmark dry-run:** All 6 manifest cases validated (`status: "not_tested"` for live AI).
   - **Grounded Tutor scripted test set (`tests/test_tutor.py`):** 7/7 in-scope questions answered with verified citations; 6/6 out-of-scope/adversarial questions abstained with `"Not established by this diagram."`.
 
 ### Honest Limitations & What Has Not Been Verified Yet
 - **Live Gemini Vision smoke test:** **Not executed** in this environment because no local `GEMINI_API_KEY` was configured (`AI_PROVIDER=none`). Automated AI tests use mocked `VisionProvider` instances only. See [docs/EXTRACTION_EVALUATION.md](docs/EXTRACTION_EVALUATION.md).
-- **Live browser & screen-reader audit:** Live Chrome browser automation (DevTools port unavailable), NVDA, JAWS, VoiceOver sessions, and blind-learner user studies have **not** been executed yet. No WCAG compliance certification or demonstrated learning outcome is claimed. See [docs/EVIDENCE_MATRIX.md](docs/EVIDENCE_MATRIX.md) and [docs/USER_STUDY_PROTOCOL.md](docs/USER_STUDY_PROTOCOL.md).
+- **Live microphone, browser & screen-reader audit:** Automated browser microphone capture, live Chrome/Edge Web Speech API transcription, NVDA, JAWS, VoiceOver sessions, and blind-learner user studies have **not** been executed in this environment. Voice intent parsing, tutor routing, and full E2E journeys are verified via automated API/integration tests; see the manual Chrome/Edge microphone test script in [docs/VOICE_AND_LIBRARY_GUIDE.md](docs/VOICE_AND_LIBRARY_GUIDE.md). No WCAG compliance certification or demonstrated learning outcome is claimed. See [docs/EVIDENCE_MATRIX.md](docs/EVIDENCE_MATRIX.md) and [docs/USER_STUDY_PROTOCOL.md](docs/USER_STUDY_PROTOCOL.md).
 - **Structured-data domains:** Mathematics (`math_plot`) and Chemistry (`chemistry_molecule`) use validated CSV and SMILES inputs rather than image-to-graph recognition.
 
 ---

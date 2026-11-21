@@ -115,6 +115,7 @@
     voicePttBtn: document.getElementById("voice-ptt-btn"),
     voiceCancelBtn: document.getElementById("voice-cancel-btn"),
     voiceMicStatus: document.getElementById("voice-mic-status"),
+    voiceCommandPanel: document.getElementById("voice-command-panel"),
     voiceTextForm: document.getElementById("voice-text-form"),
     voiceTextInput: document.getElementById("voice-text-input"),
     voiceTranscriptBox: document.getElementById("voice-transcript-box"),
@@ -1700,6 +1701,7 @@
       state.lastNarrationText = textToSpeak;
       speakText(textToSpeak);
     }
+    updateContextualGuidance();
   }
 
   function updateTtsControls() {
@@ -3627,6 +3629,11 @@
       if (card) card.hidden = key !== step;
     }
 
+    // Keep Welcome screen ultra-calm: show the voice/text command bar once learning begins.
+    if (dom.voiceCommandPanel) {
+      dom.voiceCommandPanel.hidden = step === "welcome";
+    }
+
     if (dom.studentStepper) {
       const currentIdx = STUDENT_STEP_ORDER.indexOf(step);
       const items = dom.studentStepper.querySelectorAll("li[data-step]");
@@ -3919,8 +3926,12 @@
     const node = diagram.nodes[state.studentCompIdx];
     state.selectedNodeId = node.id;
 
-    dom.studentExploreHeading.textContent = diagram.title;
-    dom.studentExploreBadge.textContent = formatSourceLabel(diagram.source);
+    dom.studentExploreHeading.textContent = state.currentLessonMeta
+      ? state.currentLessonMeta.title
+      : diagram.title;
+    dom.studentExploreBadge.textContent =
+      (state.currentLessonMeta && state.currentLessonMeta.provenance) ||
+      formatSourceLabel(diagram.source);
     dom.studentExploreIntro.textContent = diagram.summary;
 
     dom.studentCompCounter.textContent = `Component ${state.studentCompIdx + 1} of ${diagram.nodes.length}`;

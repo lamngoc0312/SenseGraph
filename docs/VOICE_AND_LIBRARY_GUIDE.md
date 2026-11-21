@@ -72,3 +72,19 @@ Every lesson has a **distinct diagram configuration or dataset**, passes determi
 
 - **Automated verification:** 98 pytest tests (including Phase 15 voice intent/tutor routing, Phase 16 20-lesson validation & package security, and Phase 17 end-to-end voice + keyboard journeys), `ruff --target-version py311`, `node --check` on all modular JS files, and `evaluation.benchmark --mode dry-run`.
 - **Not yet tested in this environment:** Live manual usability testing with **NVDA** (Windows) or **VoiceOver** (macOS), live microphone transcription in Chrome/Edge, and live Gemini Vision API calls (no `.env` key configured). Do not claim WCAG certification or blind-user validation until live assistive-technology sessions are completed.
+
+---
+
+## 7. Manual Real-Microphone Verification Script (Chrome / Edge, ~90 Seconds)
+
+Use this checklist on Windows Chrome or Edge to verify real browser speech recognition and speech synthesis end-to-end:
+
+1. Start the server: `python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload` and open `http://127.0.0.1:8000`.
+2. Verify **zero autoplay** on page load and that `Mic: Ready` is shown.
+3. Click **Start Spoken Guidance & Begin** → confirm SenseGraph speaks Step 2 guidance calmly.
+4. Click **Speak Command** (or Tab to it and press `Enter`) → grant microphone permission when prompted → verify app speech stops immediately and badge shows `Mic: Listening…`.
+5. Say **"Physics"** → confirm library filters to 4 Physics lessons.
+6. Click **Speak Command** → say **"Beginner"** → confirm *Simple Series Circuit (Open Switch)* opens at Component 1 of 3.
+7. Click **Speak Command** → say **"Why is the bulb off?"** → confirm the Evidence-Grounded Tutor replies citing `bulb_1` and `all_switches_closed=False`.
+8. Click **Speak Command** → say **"Start experiment"** → then say **"Option one"** → then say **"Submit my answer"** → confirm the verified Python simulation toggles Switch S1 and reports Bulb L1 ON with evidence.
+9. Test **Pause**, **Resume**, **Stop**, **Repeat**, and **Cancel Listening**, plus typing `"Next lesson"` in the keyboard command box to confirm the non-voice fallback works identically.
