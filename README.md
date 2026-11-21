@@ -4,8 +4,10 @@
 
 - **Hackathon:** STEM2Connect AI Hackathon 2026
 - **Primary Track:** Education · **Related Social Impact:** Community Impact
-- **Stack:** Python 3.11–3.13, FastAPI, Pydantic v2, Vanilla HTML5/CSS/JS, Google Gemini (`google-genai`), Pytest
-- **Release Candidate:** `v1.0.0-rc2` (Phases 1–13 complete; 82 automated tests passing; 5 STEM domains implemented)
+- **Stack:** Python 3.11–3.13, FastAPI, Pydantic v2, Vanilla HTML5/CSS/JS (modular `voice.js`, `library.js`, `guidance.js`), Google Gemini (`google-genai`), Pytest
+- **Current Build:** **SenseGraph 2.0** (Phases 1–17 complete; **98 automated tests passing**; **20 distinct validated STEM lessons** across 5 domains)
+
+> **New in SenseGraph 2.0 (Phases 14–17):** Calm **Audio-First Student Experience** (default) with contextual step guidance, optional **Push-to-Talk Conversational Voice Interaction** (`POST /api/voice/interpret`, routed to the Evidence-Grounded Tutor), a **20-Lesson Validated STEM Learning Library** (`GET /api/lessons`) with local-only progress tracking, and **Educator JSON Lesson Package Authoring** (`POST /api/lessons/validate-package`). See [docs/VOICE_AND_LIBRARY_GUIDE.md](docs/VOICE_AND_LIBRARY_GUIDE.md) for the complete Voice Command Reference, privacy disclosure, and lesson catalog.
 
 ---
 

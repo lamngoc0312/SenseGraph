@@ -132,6 +132,21 @@
         </ol>
       </nav>
 
+      <!-- Phase 17: Calm Contextual Guidance Banner (Where am I? What can I do? How?) -->
+      <section
+        id="student-context-guide"
+        class="student-context-guide"
+        aria-label="Current step guidance"
+      >
+        <p id="guide-where" class="guide-where">Step 1 of 5 · Welcome to SenseGraph</p>
+        <p id="guide-what" class="guide-what">
+          Choose Screen Reader mode (recommended for NVDA/VoiceOver) or Spoken Guidance mode.
+        </p>
+        <p id="guide-how" class="guide-how">
+          Use Tab and Enter to choose an action, or press Speak Command anytime.
+        </p>
+      </section>
+
       <!-- Phase 15: Conversational Voice & Keyboard Command Bar -->
       <section
         id="voice-command-panel"
@@ -341,10 +356,10 @@
           </button>
         </div>
 
-        <div class="student-visual-sync">
-          <p class="field-hint">
-            Visual companion (optional for sighted learners — full text above):
-          </p>
+        <details class="student-visual-sync" id="student-visual-details">
+          <summary class="student-visual-summary">
+            Show optional visual diagram (for sighted learners — full text above)
+          </summary>
           <svg
             id="student-mini-svg"
             class="semantic-graph-svg"
@@ -352,7 +367,7 @@
             aria-hidden="true"
             focusable="false"
           ></svg>
-        </div>
+        </details>
 
         <div class="student-footer-actions">
           <button type="button" id="student-explore-back-btn" class="btn btn-secondary">
@@ -1164,6 +1179,7 @@
 
   <script src="/static/js/voice.js" defer></script>
   <script src="/static/js/library.js" defer></script>
+  <script src="/static/js/guidance.js" defer></script>
   <script src="/static/app.js" defer></script>
 </body>
 </html>

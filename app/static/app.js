@@ -124,6 +124,9 @@
     // Phase 14: Student Experience DOM
     studentSection: document.getElementById("student-section"),
     studentStepper: document.getElementById("student-stepper"),
+    guideWhere: document.getElementById("guide-where"),
+    guideWhat: document.getElementById("guide-what"),
+    guideHow: document.getElementById("guide-how"),
     studentHelpDialog: document.getElementById("student-help-dialog"),
     studentHelpHeading: document.getElementById("student-help-heading"),
     studentHelpCloseBtn: document.getElementById("student-help-close-btn"),
@@ -3576,6 +3579,31 @@
       : "btn btn-secondary btn-sm";
   }
 
+  function updateContextualGuidance() {
+    if (!window.SenseGraphGuidance || !dom.guideWhere) return;
+    const diagram = state.currentDiagram;
+    const node =
+      diagram && diagram.nodes && diagram.nodes[state.studentCompIdx]
+        ? diagram.nodes[state.studentCompIdx]
+        : null;
+    const info = window.SenseGraphGuidance.buildContextualGuidance({
+      step: state.studentStep,
+      voiceEnabled: state.spokenGuidanceEnabled,
+      lessonTitle: state.currentLessonMeta
+        ? state.currentLessonMeta.title
+        : diagram
+          ? diagram.title
+          : "",
+      compIndex: state.studentCompIdx,
+      compCount: diagram && diagram.nodes ? diagram.nodes.length : 0,
+      compLabel: node ? node.label : "",
+      hasResult: Boolean(state.studentLastResult),
+    });
+    dom.guideWhere.textContent = info.where;
+    dom.guideWhat.textContent = info.what;
+    dom.guideHow.textContent = info.how;
+  }
+
   function setStudentStep(step, focusHeading = true) {
     state.studentStep = step;
     closeStudentHelp(false);
@@ -3619,6 +3647,7 @@
       });
     }
 
+    updateContextualGuidance();
     if (focusHeading && stepHeadings[step]) {
       stepHeadings[step].focus();
     }
@@ -3908,6 +3937,7 @@
       : "Next Component";
 
     renderSemanticSvgGraph(diagram, dom.studentMiniSvg);
+    updateContextualGuidance();
 
     const narration = buildStudentComponentNarration(diagram, node, state.studentCompIdx);
     state.lastNarrationText = narration;
