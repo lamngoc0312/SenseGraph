@@ -92,6 +92,7 @@
     studentStep: "welcome", // "welcome" | "subjects" | "explore" | "experiment" | "summary"
     studentCompIdx: 0,
     studentLastResult: null,
+    currentLessonMeta: null, // Phase 16 active LessonMetadata
     spokenGuidanceEnabled: false, // Strictly OFF by default — never autoplays
     lastNarrationText: "",
     availableVoices: [],
@@ -135,7 +136,21 @@
 
     studentStepSubjects: document.getElementById("student-step-subjects"),
     studentSubjectsHeading: document.getElementById("student-subjects-heading"),
+    studentProgressText: document.getElementById("student-progress-text"),
+    studentContinueBtn: document.getElementById("student-continue-btn"),
+    studentClearProgressBtn: document.getElementById("student-clear-progress-btn"),
+    libraryDomainFilter: document.getElementById("library-domain-filter"),
+    libraryDifficultyFilter: document.getElementById("library-difficulty-filter"),
+    librarySearchInput: document.getElementById("library-search-input"),
     studentSubjectsGrid: document.getElementById("student-subjects-grid"),
+    authorExportForm: document.getElementById("authoring-export-form"),
+    authorLessonTitle: document.getElementById("author-lesson-title"),
+    authorLessonDifficulty: document.getElementById("author-lesson-difficulty"),
+    authorLessonDesc: document.getElementById("author-lesson-desc"),
+    authorLessonObjectives: document.getElementById("author-lesson-objectives"),
+    authorImportInput: document.getElementById("author-import-input"),
+    authorPreviewStudentBtn: document.getElementById("author-preview-student-btn"),
+    authorStatusMsg: document.getElementById("author-status-msg"),
     studentSubjectsBackBtn: document.getElementById("student-subjects-back-btn"),
     studentSubjectsUploadBtn: document.getElementById("student-subjects-upload-btn"),
     studentSubjectsHelpBtn: document.getElementById("student-subjects-help-btn"),
@@ -3675,43 +3690,182 @@
     }
   }
 
+  let progressStore = null;
+  let libraryController = null;
+  let educatorPackageTool = null;
+
+  function updateProgressUi() {
+    if (!progressStore || !libraryController || !dom.studentProgressText) return;
+    const summary = progressStore.getSummary(libraryController.lessons.length);
+    dom.studentProgressText.textContent =
+      `Progress: ${summary.completedCount} of ${summary.totalLessons} lessons completed`;
+    if (dom.studentContinueBtn) {
+      dom.studentContinueBtn.hidden = !summary.currentLessonId;
+    }
+  }
+
   function renderStudentSubjects() {
     if (!dom.studentSubjectsGrid) return;
     dom.studentSubjectsGrid.textContent = "";
+    updateProgressUi();
 
+    const lessons =
+      libraryController && libraryController.lessons.length > 0
+        ? libraryController.getFilteredLessons()
+        : [];
+
+    if (lessons.length === 0 && libraryController && libraryController.lessons.length > 0) {
+      const empty = document.createElement("p");
+      empty.className = "student-lead";
+      empty.textContent =
+        "No lessons matched your current filter. Clear the search or choose All 5 Subjects.";
+      dom.studentSubjectsGrid.appendChild(empty);
+      return;
+    }
+
+    if (lessons.length > 0) {
+      for (const lesson of lessons) {
+        const meta = STUDENT_SUBJECT_META[lesson.domain] || { icon: "S" };
+        const completed = progressStore ? progressStore.isCompleted(lesson.lesson_id) : false;
+
+        const card = document.createElement("article");
+        card.className = "subject-tile";
+
+        const topRow = document.createElement("div");
+        topRow.className = "lesson-meta-row";
+
+        const badge = document.createElement("span");
+        badge.className = "subject-icon-badge";
+        badge.setAttribute("aria-hidden", "true");
+        badge.textContent = meta.icon;
+        topRow.appendChild(badge);
+
+        const diffBadge = document.createElement("span");
+        diffBadge.className = "badge badge-domain";
+        diffBadge.textContent =
+          lesson.difficulty.charAt(0).toUpperCase() + lesson.difficulty.slice(1);
+        topRow.appendChild(diffBadge);
+
+        const durBadge = document.createElement("span");
+        durBadge.className = "badge badge-neutral";
+        durBadge.textContent = lesson.estimated_duration || "5 min";
+        topRow.appendChild(durBadge);
+
+        if (completed) {
+          const doneBadge = document.createElement("span");
+          doneBadge.className = "badge badge-completed";
+          doneBadge.textContent = "Completed";
+          topRow.appendChild(doneBadge);
+        }
+
+        const heading = document.createElement("h3");
+        heading.textContent = lesson.title;
+
+        const blurb = document.createElement("p");
+        blurb.textContent = lesson.description;
+
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "btn btn-primary";
+        btn.textContent = completed ? "Review Lesson" : "Start Lesson";
+        btn.setAttribute(
+          "aria-label",
+          `${completed ? "Review" : "Start"} Lesson: ${lesson.title} (${lesson.difficulty})`
+        );
+        btn.addEventListener("click", () => startStudentLessonById(lesson.lesson_id));
+
+        card.appendChild(topRow);
+        card.appendChild(heading);
+        card.appendChild(blurb);
+        card.appendChild(btn);
+        dom.studentSubjectsGrid.appendChild(card);
+      }
+      return;
+    }
+
+    // Fallback to /api/examples if library is empty
     for (const ex of state.examples) {
       const meta = STUDENT_SUBJECT_META[ex.domain] || {
         icon: "S",
         shortTitle: ex.title,
         blurb: ex.summary,
       };
-
       const card = document.createElement("article");
       card.className = "subject-tile";
-
-      const badge = document.createElement("span");
-      badge.className = "subject-icon-badge";
-      badge.setAttribute("aria-hidden", "true");
-      badge.textContent = meta.icon;
-
       const heading = document.createElement("h3");
       heading.textContent = meta.shortTitle;
-
-      const blurb = document.createElement("p");
-      blurb.textContent = meta.blurb;
-
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "btn btn-primary";
       btn.textContent = "Start Lesson";
-      btn.setAttribute("aria-label", `Start Lesson: ${meta.shortTitle}`);
       btn.addEventListener("click", () => startStudentLesson(ex.id));
-
-      card.appendChild(badge);
       card.appendChild(heading);
-      card.appendChild(blurb);
       card.appendChild(btn);
       dom.studentSubjectsGrid.appendChild(card);
+    }
+  }
+
+  async function startStudentLessonWithDiagram(diagram, lessonMeta = null) {
+    const backendState = await fetchBackendState(diagram);
+    state.baselineDiagram = deepClone(diagram);
+    state.currentDiagram = deepClone(diagram);
+    state.currentLessonMeta = lessonMeta;
+    state.backendState = backendState;
+    state.selectedNodeId = diagram.nodes.length > 0 ? diagram.nodes[0].id : null;
+    state.studentCompIdx = 0;
+    state.studentLastResult = null;
+    state.lastSimulation = null;
+    state.explorerMode = "explore";
+    state.tourStep = "overview";
+    state.flowchartTrace = null;
+    state.flowchartStepIdx = 0;
+    state.flowchartInputValues = {};
+    state.mathAnalysis = null;
+    state.mathPointIdx = 0;
+    state.tutorHistory = [];
+    renderTutorHistory();
+
+    if (diagram.domain === "math_plot") {
+      state.mathAnalysis = await apiRequest("/api/math/analyze", {
+        method: "POST",
+        body: JSON.stringify({ diagram }),
+      });
+    }
+
+    stopTts();
+    resetLabState();
+    await loadLabChallengesForBaseline();
+    state.isBusy = false;
+
+    if (progressStore && lessonMeta) {
+      progressStore.setCurrent(lessonMeta.lesson_id, "explore");
+      updateProgressUi();
+    }
+
+    setStudentStep("explore", true);
+    renderStudentExplore(false);
+
+    const firstNode = diagram.nodes[0];
+    const introText =
+      `Started lesson: ${lessonMeta ? lessonMeta.title : diagram.title}. ` +
+      `${formatSourceLabel(diagram.source)}. ` +
+      `This diagram has ${diagram.nodes.length} components. ` +
+      (firstNode ? buildStudentComponentNarration(diagram, firstNode, 0) : "");
+    announce(introText);
+  }
+
+  async function startStudentLessonById(lessonId) {
+    if (state.isBusy || !libraryController) return;
+    clearError();
+    state.isBusy = true;
+    announce("Loading lesson…");
+    try {
+      const detail = await libraryController.fetchLessonDetail(lessonId);
+      await startStudentLessonWithDiagram(detail.diagram, detail.lesson);
+    } catch (err) {
+      state.isBusy = false;
+      showError(`Could not load lesson: ${err.message}`);
+      announce(`Error loading lesson: ${err.message}`);
     }
   }
 
@@ -3913,6 +4067,12 @@
       }
 
       state.isBusy = false;
+      if (progressStore && state.currentLessonMeta) {
+        progressStore.recordAttempt(state.currentLessonMeta.lesson_id);
+        progressStore.markCompleted(state.currentLessonMeta.lesson_id);
+        progressStore.setCurrent(state.currentLessonMeta.lesson_id, "summary");
+        updateProgressUi();
+      }
       setStudentStep("summary", true);
       renderStudentSummary();
     } catch (err) {
@@ -3948,6 +4108,15 @@
   }
 
   function startNextStudentLesson() {
+    if (libraryController && libraryController.lessons.length > 0) {
+      const curId = state.currentLessonMeta ? state.currentLessonMeta.lesson_id : null;
+      const completed = progressStore ? progressStore.data.completedLessonIds : [];
+      const nextLesson = libraryController.getRecommendedNext(curId, completed);
+      if (nextLesson) {
+        startStudentLessonById(nextLesson.lesson_id);
+        return;
+      }
+    }
     if (!state.examples.length) return;
     const curId = state.baselineDiagram ? state.baselineDiagram.id : null;
     const idx = state.examples.findIndex((ex) => ex.id === curId);
@@ -4010,7 +4179,11 @@
         announce(msg);
         return msg;
       },
-      continueLearning: () => {
+      continueLearning: async () => {
+        if (progressStore && progressStore.data.currentLessonId && libraryController) {
+          await startStudentLessonById(progressStore.data.currentLessonId);
+          return `Resumed lesson ${state.currentLessonMeta ? state.currentLessonMeta.title : ""}.`;
+        }
         if (state.currentDiagram) {
           setStudentStep("explore", true);
           renderStudentExplore(true);
@@ -4020,6 +4193,16 @@
         return "Choose a subject to begin learning.";
       },
       selectSubject: async (domain) => {
+        if (libraryController && libraryController.lessons.length > 0) {
+          libraryController.selectedDomain = domain;
+          if (dom.libraryDomainFilter) dom.libraryDomainFilter.value = domain;
+          setStudentStep("subjects", true);
+          renderStudentSubjects();
+          const matching = libraryController.getFilteredLessons();
+          const msg = `Showing ${matching.length} lessons. Say Beginner to start the first beginner lesson, or choose a lesson.`;
+          announce(msg);
+          return msg;
+        }
         const match = state.examples.find((ex) => ex.domain === domain);
         if (match) {
           await startStudentLesson(match.id);
@@ -4028,10 +4211,20 @@
         setStudentStep("subjects", true);
         return "Choose a subject from the available list.";
       },
-      selectDifficulty: (difficulty) => {
-        // Hook enhanced in Phase 16 with full library filter
-        if (typeof window.__sgApplyDifficultyFilter === "function") {
-          return window.__sgApplyDifficultyFilter(difficulty);
+      selectDifficulty: async (difficulty) => {
+        if (libraryController && libraryController.lessons.length > 0) {
+          libraryController.selectedDifficulty = difficulty;
+          if (dom.libraryDifficultyFilter) dom.libraryDifficultyFilter.value = difficulty;
+          renderStudentSubjects();
+          const matching = libraryController.getFilteredLessons();
+          if (matching.length > 0 && libraryController.selectedDomain) {
+            await startStudentLessonById(matching[0].lesson_id);
+            return `Started ${difficulty} lesson: ${matching[0].title}.`;
+          }
+          setStudentStep("subjects", true);
+          const msg = `Filtered to ${matching.length} ${difficulty} lessons.`;
+          announce(msg);
+          return msg;
         }
         setStudentStep("subjects", true);
         announce(`Selected ${difficulty} difficulty. Choose a subject to begin.`);
@@ -4309,6 +4502,113 @@
     window.addEventListener("beforeunload", stopTts);
     updateAudioBarControls();
     updateExperienceButtons();
+
+    // Phase 16: Initialize Modular Library, Local Progress, & Educator Authoring
+    if (window.SenseGraphLibrary) {
+      progressStore = new window.SenseGraphLibrary.ProgressStore();
+      libraryController = new window.SenseGraphLibrary.LessonLibraryController(apiRequest);
+      educatorPackageTool = new window.SenseGraphLibrary.EducatorPackageTool(apiRequest);
+
+      if (dom.libraryDomainFilter) {
+        dom.libraryDomainFilter.addEventListener("change", () => {
+          libraryController.selectedDomain = dom.libraryDomainFilter.value;
+          renderStudentSubjects();
+          announce(`Showing ${libraryController.getFilteredLessons().length} lessons.`);
+        });
+      }
+      if (dom.libraryDifficultyFilter) {
+        dom.libraryDifficultyFilter.addEventListener("change", () => {
+          libraryController.selectedDifficulty = dom.libraryDifficultyFilter.value;
+          renderStudentSubjects();
+          announce(`Showing ${libraryController.getFilteredLessons().length} lessons.`);
+        });
+      }
+      if (dom.librarySearchInput) {
+        dom.librarySearchInput.addEventListener("input", () => {
+          libraryController.searchQuery = dom.librarySearchInput.value;
+          renderStudentSubjects();
+        });
+      }
+      if (dom.studentContinueBtn) {
+        dom.studentContinueBtn.addEventListener("click", () => {
+          if (progressStore.data.currentLessonId) {
+            startStudentLessonById(progressStore.data.currentLessonId);
+          }
+        });
+      }
+      if (dom.studentClearProgressBtn) {
+        dom.studentClearProgressBtn.addEventListener("click", () => {
+          progressStore.clear();
+          renderStudentSubjects();
+          announce("Local learning progress cleared.");
+        });
+      }
+      if (dom.authorExportForm) {
+        dom.authorExportForm.addEventListener("submit", async (e) => {
+          e.preventDefault();
+          clearError();
+          if (!state.currentDiagram) {
+            showError("Load or confirm a diagram before exporting a lesson package.");
+            return;
+          }
+          try {
+            const pkg = educatorPackageTool.buildPackage({
+              diagram: state.currentDiagram,
+              title: dom.authorLessonTitle.value,
+              description: dom.authorLessonDesc.value,
+              difficulty: dom.authorLessonDifficulty.value,
+              objectivesText: dom.authorLessonObjectives.value,
+            });
+            const validation = await educatorPackageTool.validatePackage(pkg);
+            if (!validation.valid) {
+              dom.authorStatusMsg.textContent = `Validation failed: ${validation.errors.join(" ")}`;
+              showError(`Lesson package invalid: ${validation.errors.join(" ")}`);
+              return;
+            }
+            educatorPackageTool.downloadJson({
+              lesson: validation.lesson,
+              diagram: validation.diagram,
+            });
+            dom.authorStatusMsg.textContent = `Validated and exported '${validation.lesson.title}'.`;
+            announce(`Exported validated lesson package ${validation.lesson.title}.`);
+          } catch (err) {
+            showError(`Export failed: ${err.message}`);
+          }
+        });
+      }
+      if (dom.authorImportInput) {
+        dom.authorImportInput.addEventListener("change", async () => {
+          const file = dom.authorImportInput.files && dom.authorImportInput.files[0];
+          if (!file) return;
+          clearError();
+          try {
+            const text = await file.text();
+            const parsed = JSON.parse(text);
+            const validation = await educatorPackageTool.validatePackage(parsed);
+            if (!validation.valid) {
+              dom.authorStatusMsg.textContent = `Import blocked: ${validation.errors.join(" ")}`;
+              showError(`Imported lesson package rejected: ${validation.errors.join(" ")}`);
+              return;
+            }
+            dom.authorStatusMsg.textContent = `Imported validated lesson '${validation.lesson.title}'. Previewing in Student Experience.`;
+            state.uiExperience = "student";
+            updateExperienceButtons();
+            showSection("student");
+            await startStudentLessonWithDiagram(validation.diagram, validation.lesson);
+          } catch (err) {
+            showError(`Could not import lesson JSON: ${err.message}`);
+          } finally {
+            dom.authorImportInput.value = "";
+          }
+        });
+      }
+      if (dom.authorPreviewStudentBtn) {
+        dom.authorPreviewStudentBtn.addEventListener("click", () => {
+          setExperience("student");
+        });
+      }
+    }
+
     initVoiceController();
 
     // Phase 14: Student Experience Help & Escape handling
@@ -4580,6 +4880,9 @@
       ]);
       state.health = health;
       state.examples = examples;
+      if (libraryController) {
+        await libraryController.loadAll();
+      }
       renderHealth();
       renderExamplesGrid();
       renderStudentSubjects();

@@ -529,3 +529,57 @@ class VoiceInterpretResponse(BaseModel):
     needs_clarification: bool = False
     confidence: Literal["high", "medium", "low"] = "high"
     tutor_response: TutorAskResponse | None = None
+
+
+# --- Phase 16: Scalable STEM Learning Library & Educator Lesson Packages ---
+
+
+LessonDifficulty = Literal["beginner", "intermediate", "advanced"]
+
+
+class LessonStepItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    step_id: str
+    title: str
+    instruction: str
+
+
+class LessonMetadata(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    lesson_id: str = Field(..., min_length=1, max_length=80)
+    title: str = Field(..., min_length=1, max_length=160)
+    domain: DomainType
+    difficulty: LessonDifficulty
+    description: str = Field(..., min_length=1, max_length=600)
+    learning_objectives: list[str] = Field(default_factory=list)
+    prerequisites: list[str] = Field(default_factory=list)
+    diagram_id: str = Field(..., min_length=1, max_length=80)
+    estimated_duration: str = Field(default="5 min", max_length=40)
+    lesson_steps: list[LessonStepItem] = Field(default_factory=list)
+    supported_actions: list[str] = Field(default_factory=list)
+    challenges: list[str] = Field(default_factory=list)
+    explanations: list[str] = Field(default_factory=list)
+    review_status: ReviewStatus = "confirmed"
+    provenance: str = Field(default="Pre-annotated curriculum lesson — no AI used")
+
+
+class LessonDetailResponse(BaseModel):
+    lesson: LessonMetadata
+    diagram: DiagramDocument
+
+
+class LessonPackagePayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    lesson: LessonMetadata
+    diagram: DiagramDocument
+
+
+class LessonPackageValidationResponse(BaseModel):
+    valid: bool
+    errors: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    lesson: LessonMetadata | None = None
+    diagram: DiagramDocument | None = None
