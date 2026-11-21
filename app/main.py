@@ -44,6 +44,8 @@ from app.models import (
     TutorAskRequest,
     TutorAskResponse,
     ValidationResponse,
+    VoiceInterpretRequest,
+    VoiceInterpretResponse,
 )
 from app.services.ai_vision import (
     GeminiVisionProvider,
@@ -58,6 +60,7 @@ from app.services.fixtures import FixtureRepository
 from app.services.learning import evaluate_challenge, generate_challenges
 from app.services.tutor import TutorNarrator, answer_grounded_question
 from app.services.validators import validate_diagram, validate_raw_diagram
+from app.services.voice import interpret_voice_command
 from app.settings import PROJECT_ROOT, Settings, load_settings
 
 
@@ -413,6 +416,10 @@ def create_app(
             learn_mode=request.learn_mode,
             narrator=tutor_narrator,
         )
+
+    @application.post("/api/voice/interpret", response_model=VoiceInterpretResponse)
+    def post_voice_interpret(request: VoiceInterpretRequest) -> VoiceInterpretResponse:
+        return interpret_voice_command(request, narrator=tutor_narrator)
 
     return application
 

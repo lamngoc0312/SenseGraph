@@ -111,6 +111,14 @@
     audioRateSelect: document.getElementById("audio-rate-select"),
     audioVoiceSelect: document.getElementById("audio-voice-select"),
     audioModeStatus: document.getElementById("audio-mode-status"),
+    voicePttBtn: document.getElementById("voice-ptt-btn"),
+    voiceCancelBtn: document.getElementById("voice-cancel-btn"),
+    voiceMicStatus: document.getElementById("voice-mic-status"),
+    voiceTextForm: document.getElementById("voice-text-form"),
+    voiceTextInput: document.getElementById("voice-text-input"),
+    voiceTranscriptBox: document.getElementById("voice-transcript-box"),
+    voiceHeardLine: document.getElementById("voice-heard-line"),
+    voiceReplyLine: document.getElementById("voice-reply-line"),
 
     // Phase 14: Student Experience DOM
     studentSection: document.getElementById("student-section"),
@@ -1638,18 +1646,21 @@
       state.ttsPaused = false;
       updateTtsControls();
       updateAudioBarControls();
+      if (conversationController) conversationController.notifySpeaking(true);
     };
     utterance.onend = () => {
       state.ttsSpeaking = false;
       state.ttsPaused = false;
       updateTtsControls();
       updateAudioBarControls();
+      if (conversationController) conversationController.notifySpeaking(false);
     };
     utterance.onerror = () => {
       state.ttsSpeaking = false;
       state.ttsPaused = false;
       updateTtsControls();
       updateAudioBarControls();
+      if (conversationController) conversationController.notifySpeaking(false);
     };
     window.speechSynthesis.speak(utterance);
   }
@@ -3946,6 +3957,300 @@
     }
   }
 
+  let conversationController = null;
+
+  function updateVoiceUiState(ui) {
+    if (!dom.voicePttBtn || !dom.voiceMicStatus) return;
+    const labels = {
+      ready: "Mic: Ready",
+      listening: "Mic: Listening…",
+      processing: "Mic: Processing…",
+      speaking: "Mic: Speaking…",
+      error: "Mic: Error",
+      unsupported: "Mic: Unsupported (use keyboard/text)",
+    };
+    dom.voiceMicStatus.textContent = labels[ui.micState] || `Mic: ${ui.micState}`;
+    dom.voiceMicStatus.className =
+      ui.micState === "listening"
+        ? "badge badge-listening"
+        : ui.micState === "processing"
+          ? "badge badge-processing"
+          : "badge badge-neutral";
+
+    dom.voicePttBtn.disabled = !ui.supported || ui.micState === "processing";
+    dom.voicePttBtn.setAttribute("aria-pressed", String(ui.micState === "listening"));
+    dom.voicePttBtn.textContent =
+      ui.micState === "listening" ? "Listening…" : "Speak Command";
+    dom.voiceCancelBtn.disabled = ui.micState !== "listening";
+
+    if (ui.lastTranscript || ui.lastReply || ui.lastError) {
+      dom.voiceTranscriptBox.hidden = false;
+      dom.voiceHeardLine.textContent = ui.lastTranscript
+        ? `You said: "${ui.lastTranscript}"`
+        : "";
+      dom.voiceReplyLine.textContent = ui.lastError
+        ? ui.lastError
+        : ui.lastReply
+          ? `SenseGraph: ${ui.lastReply}`
+          : "";
+    }
+  }
+
+  function initVoiceController() {
+    if (!window.SenseGraphVoice) return;
+    const { VoiceCommandInterpreter, LearningSessionController, ConversationController } =
+      window.SenseGraphVoice;
+
+    const interpreter = new VoiceCommandInterpreter(apiRequest);
+    const sessionController = new LearningSessionController({
+      startLearning: () => {
+        setStudentStep("subjects", true);
+        const msg =
+          "Welcome! Choose Physics, Biology, Computer Science, Mathematics, or Chemistry.";
+        announce(msg);
+        return msg;
+      },
+      continueLearning: () => {
+        if (state.currentDiagram) {
+          setStudentStep("explore", true);
+          renderStudentExplore(true);
+          return `Continuing ${state.currentDiagram.title}.`;
+        }
+        setStudentStep("subjects", true);
+        return "Choose a subject to begin learning.";
+      },
+      selectSubject: async (domain) => {
+        const match = state.examples.find((ex) => ex.domain === domain);
+        if (match) {
+          await startStudentLesson(match.id);
+          return `Opened ${match.title}.`;
+        }
+        setStudentStep("subjects", true);
+        return "Choose a subject from the available list.";
+      },
+      selectDifficulty: (difficulty) => {
+        // Hook enhanced in Phase 16 with full library filter
+        if (typeof window.__sgApplyDifficultyFilter === "function") {
+          return window.__sgApplyDifficultyFilter(difficulty);
+        }
+        setStudentStep("subjects", true);
+        announce(`Selected ${difficulty} difficulty. Choose a subject to begin.`);
+        return `Selected ${difficulty} difficulty.`;
+      },
+      next: () => {
+        if (state.studentStep === "welcome") {
+          setStudentStep("subjects", true);
+          announce("Step 2: Choose a subject.");
+          return "Step 2: Choose a subject.";
+        }
+        if (state.studentStep === "explore" && state.currentDiagram) {
+          if (state.studentCompIdx < state.currentDiagram.nodes.length - 1) {
+            state.studentCompIdx += 1;
+            renderStudentExplore(true);
+            return state.lastNarrationText;
+          }
+          setStudentStep("experiment", true);
+          renderStudentExperiment();
+          return "Moving to prediction and experiment.";
+        }
+        if (state.studentStep === "summary") {
+          startNextStudentLesson();
+          return "Loading next lesson.";
+        }
+        return "Use a button or say a subject name to continue.";
+      },
+      previous: () => {
+        if (state.studentStep === "explore" && state.studentCompIdx > 0) {
+          state.studentCompIdx -= 1;
+          renderStudentExplore(true);
+          return state.lastNarrationText;
+        }
+        if (state.studentStep === "experiment") {
+          setStudentStep("explore", true);
+          renderStudentExplore(true);
+          return "Returned to component exploration.";
+        }
+        if (state.studentStep === "subjects") {
+          setStudentStep("welcome", true);
+          announce("Returned to Welcome screen.");
+          return "Returned to Welcome screen.";
+        }
+        return "Already at the first item.";
+      },
+      repeat: () => {
+        const txt =
+          state.lastNarrationText ||
+          "You are in SenseGraph Student Experience. Say Start learning or Help.";
+        announce(txt);
+        return txt;
+      },
+      help: () => {
+        openStudentHelp(dom.voicePttBtn);
+        return "Opened keyboard and voice help.";
+      },
+      goBack: () => {
+        if (state.studentStep === "summary" || state.studentStep === "experiment") {
+          setStudentStep("explore", true);
+          renderStudentExplore(true);
+          return "Returned to exploration.";
+        }
+        if (state.studentStep === "explore") {
+          setStudentStep("subjects", true);
+          announce("Returned to Subject selection.");
+          return "Returned to Subject selection.";
+        }
+        setStudentStep("welcome", true);
+        announce("Returned to Welcome screen.");
+        return "Returned to Welcome screen.";
+      },
+      explainComponent: () => {
+        if (state.currentDiagram) {
+          renderStudentExplore(true);
+          return state.lastNarrationText;
+        }
+        return "Start a lesson first to explore components.";
+      },
+      explainDiagram: () => {
+        if (state.currentDiagram) {
+          const text = buildTourOverviewText(state.currentDiagram);
+          announce(text);
+          return text;
+        }
+        return "Start a lesson first to hear a diagram overview.";
+      },
+      tellMeMore: () => {
+        if (state.currentDiagram) {
+          const text = buildTourOverviewText(state.currentDiagram);
+          announce(text);
+          return text;
+        }
+        return "Choose a lesson to hear more details.";
+      },
+      startExperiment: () => {
+        if (!state.currentDiagram) {
+          return "Choose a subject and start a lesson before running an experiment.";
+        }
+        setStudentStep("experiment", true);
+        renderStudentExperiment();
+        return "Opened prediction and experiment step.";
+      },
+      selectOption: (optionId, optionLabel) => {
+        if (state.studentStep !== "experiment") {
+          return "Move to the experiment step first to select an answer option.";
+        }
+        const input = dom.studentExpOptions.querySelector(
+          `input[value="${CSS.escape(optionId)}"]`
+        );
+        if (input) {
+          input.checked = true;
+          input.focus();
+          return `Selected ${optionLabel}. Say Submit my answer to run the verified experiment.`;
+        }
+        return "That option was not found on this screen.";
+      },
+      submitAnswer: async () => {
+        if (state.studentStep === "experiment") {
+          await handleStudentExperimentSubmit(new Event("submit"));
+          return state.studentLastResult
+            ? `${state.studentLastResult.summary} ${state.studentLastResult.explanation}`
+            : "Submitted answer.";
+        }
+        return "Move to the experiment step before submitting an answer.";
+      },
+      tryAgain: async () => {
+        if (state.baselineDiagram) {
+          state.studentLastResult = null;
+          await restoreBaselineForLab();
+          setStudentStep("experiment", true);
+          renderStudentExperiment();
+          return "Experiment reset. Make a new prediction.";
+        }
+        return "No active experiment to retry.";
+      },
+      nextLesson: () => {
+        startNextStudentLesson();
+        return "Loading the next verified lesson.";
+      },
+      toggleSwitch: async () => {
+        if (state.currentDiagram && state.currentDiagram.domain === "physics_circuit") {
+          const sw = state.currentDiagram.nodes.find((n) => n.kind === "switch");
+          if (sw) {
+            await runSimulation({ type: "toggle_switch", target_id: sw.id });
+            if (state.uiExperience === "student") {
+              showSection("student");
+              renderStudentExplore(false);
+            }
+            return state.lastSimulation
+              ? state.lastSimulation.announcement
+              : "Toggled switch.";
+          }
+        }
+        return "Switch toggle is available in Physics series circuit lessons.";
+      },
+      confirmYes: () => {
+        if (state.studentStep === "explore") {
+          setStudentStep("experiment", true);
+          renderStudentExperiment();
+          return "Starting the verified experiment.";
+        }
+        if (state.studentStep === "summary") {
+          startNextStudentLesson();
+          return "Moving to the next lesson.";
+        }
+        return "Ready for your next choice.";
+      },
+      confirmNo: () => "Okay, staying right here. Say Next or Help whenever you are ready.",
+      displayTutorReply: (tutorResp, spoken) => spoken,
+    });
+
+    conversationController = new ConversationController({
+      getContext: () => {
+        const challenge =
+          state.labChallenges && state.labChallenges.length
+            ? state.labChallenges[state.labIndex] || state.labChallenges[0]
+            : null;
+        return {
+          step: state.studentStep,
+          domain: state.currentDiagram ? state.currentDiagram.domain : null,
+          selectedNodeId: state.selectedNodeId,
+          challengeId: challenge ? challenge.id : null,
+          availableOptions:
+            state.studentStep === "experiment" && challenge
+              ? challenge.options.map((o) => ({ id: o.id, label: o.label }))
+              : [],
+          diagram:
+            state.currentDiagram && state.currentDiagram.review_status === "confirmed"
+              ? state.currentDiagram
+              : null,
+        };
+      },
+      stopAppSpeech: stopTts,
+      announceResponse: announce,
+      onUiUpdate: updateVoiceUiState,
+      interpreter,
+      sessionController,
+    });
+
+    dom.voicePttBtn.addEventListener("click", () => {
+      if (conversationController.micState === "listening") {
+        conversationController.cancelListening();
+      } else {
+        conversationController.startListening();
+      }
+    });
+    dom.voiceCancelBtn.addEventListener("click", () => {
+      conversationController.cancelListening();
+    });
+    dom.voiceTextForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const text = dom.voiceTextInput.value.trim();
+      if (!text) return;
+      dom.voiceTextInput.value = "";
+      await conversationController.handleTranscript(text);
+    });
+    conversationController.emitUi();
+  }
+
   function showWelcome() {
     clearError();
     stopTts();
@@ -4004,6 +4309,7 @@
     window.addEventListener("beforeunload", stopTts);
     updateAudioBarControls();
     updateExperienceButtons();
+    initVoiceController();
 
     // Phase 14: Student Experience Help & Escape handling
     dom.studentHelpCloseBtn.addEventListener("click", () => closeStudentHelp(true));

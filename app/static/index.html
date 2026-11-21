@@ -57,6 +57,23 @@
         <button type="button" id="audio-repeat-btn" class="btn btn-ghost btn-sm">
           Repeat
         </button>
+        <button
+          type="button"
+          id="voice-ptt-btn"
+          class="btn btn-primary btn-sm"
+          aria-pressed="false"
+        >
+          Speak Command
+        </button>
+        <button
+          type="button"
+          id="voice-cancel-btn"
+          class="btn btn-ghost btn-sm"
+          disabled
+        >
+          Cancel Listening
+        </button>
+        <span id="voice-mic-status" class="badge badge-neutral">Mic: Ready</span>
       </div>
       <div class="audio-settings-controls">
         <div class="tts-rate-group">
@@ -114,6 +131,37 @@
           <li data-step="summary">5. Understand</li>
         </ol>
       </nav>
+
+      <!-- Phase 15: Conversational Voice & Keyboard Command Bar -->
+      <section
+        id="voice-command-panel"
+        class="voice-command-panel"
+        aria-label="Ask a question or give a voice command"
+      >
+        <form id="voice-text-form" class="voice-text-form">
+          <label for="voice-text-input" class="sr-only">
+            Type a command or science question (keyboard alternative to microphone)
+          </label>
+          <input
+            type="text"
+            id="voice-text-input"
+            class="voice-text-input"
+            placeholder="Ask a question or say a command (e.g., 'Physics', 'Next', 'Why is the bulb off?')"
+            autocomplete="off"
+          />
+          <button type="submit" id="voice-text-submit-btn" class="btn btn-secondary btn-sm">
+            Send
+          </button>
+        </form>
+        <div id="voice-transcript-box" class="voice-transcript-box" hidden>
+          <p id="voice-heard-line" class="voice-heard-line"></p>
+          <p id="voice-reply-line" class="voice-reply-line"></p>
+        </div>
+        <p class="voice-privacy-note">
+          Microphone is optional and push-to-talk only (never records automatically).
+          When enabled, browser speech recognition may send audio to your browser vendor's speech service.
+        </p>
+      </section>
 
       <!-- Dismissible Help Box (Escape closes cleanly) -->
       <aside
@@ -1010,6 +1058,7 @@
     </div>
   </footer>
 
+  <script src="/static/js/voice.js" defer></script>
   <script src="/static/app.js" defer></script>
 </body>
 </html>
