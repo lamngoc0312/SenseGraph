@@ -5,7 +5,7 @@
 **Pre-recording prep:**
 1. Close personal tabs/notifications; open Chrome/Edge to `http://127.0.0.1:8000`.
 2. Start server: `python -m uvicorn app.main:app --reload`.
-3. Keep a second PowerShell terminal ready showing `python -m pytest -v` (**98 passed**) and `python -m ruff check --target-version py311 app tests evaluation` (**All checks passed**).
+3. Keep a second PowerShell terminal ready showing `python -m pytest -v` (**103 passed**) and `python -m ruff check --target-version py311 app tests evaluation` (**All checks passed**).
 
 | Shot | Time | On-Screen Action | What Judges Should See |
 |---|---|---|---|
@@ -14,5 +14,5 @@
 | 3 | 1:10–2:20 | Press `Enter` on **Explore Example Circuit** -> click **Next component** in Guided Tour -> switch to **Guided Learning Lab** -> choose **Bulb L1 will be ON** -> **Submit Prediction & Run Experiment** -> **Reset Experiment** | Guided Tour narration, synchronized SVG loop, Predict → Experiment → Explain workflow, Bulb L1 turning ON in stats + SVG + evidence list, Reset restoring OFF |
 | 4 | 2:20–3:15 | Click **Load Biology Food Web** -> select **Rabbit** -> click **Remove Rabbit** -> click **Reset Experiment** | Food-to-consumer arrow convention, incoming (Grass) & outgoing (Fox), exact 2 removed edges + non-extinction disclaimer, SVG updating from 5 to 4 nodes, Reset restoring all 5 |
 | 5 | 3:15–4:10 | Scroll to **Evidence-Grounded STEM Tutor** -> ask *"Is there a path from Grass to Fox?"* -> then ask *"Will Fox go extinct if Rabbit is removed?"* | Tool-backed verified answer with exact `node:`/`edge:` citations, followed by honest abstention *"Not established by this diagram."* |
-| 6 | 4:10–4:50 | Click **Load CS Flowchart** -> click **Run Trace** -> click **Next step** 2–3 times | Safe restricted interpreter (no `eval`/`exec`), bounded step trace, branch condition readout, live variable environment (`n`, `total`), synchronized SVG flowchart |
-| 7 | 4:50–5:25 | Switch to PowerShell showing `python -m pytest -v` (**98 passed**) and `ruff` (**All checks passed**) *(or insert 20s live Gemini upload clip if a real local API key was tested)* | Verified automated tests across all 20 lessons & voice flows, CI discipline, honest limitations (no fabricated live-AI, mic, or WCAG claims), and next steps |
+| 6 | 4:10–4:50 | Return to the **20-Lesson STEM Library** -> filter to **Chemistry** -> open **Water Molecule (`H2O`)** or **Carbon Dioxide (`CO2`)** -> explore atoms & double/single bonds (also note optional **Guided Conversation** & **Push-to-Talk `Alt+Shift+V`** alongside Biology's 4 ecosystem lessons) | 20 validated lessons across 5 domains, pure-Python SMILES/valence validation without toxicity/safety speculation, and equal voice/keyboard access |
+| 7 | 4:50–5:25 | Switch to PowerShell showing `python -m pytest -v` (**103 passed**) and `ruff` (**All checks passed**) *(or insert 20s live Gemini upload clip if a real local API key was tested)* | Verified automated tests across all 20 lessons, Guided Conversation & Push-to-Talk turn-taking, CI discipline on Python 3.11 & 3.13, honest limitations (no fabricated live-AI, mic, or WCAG claims), and next steps |

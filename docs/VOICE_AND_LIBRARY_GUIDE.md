@@ -17,13 +17,17 @@ This guide documents **Phases 15–17** of SenseGraph: Conversational Voice Lear
 
 ---
 
-## 2. Voice Command Reference (Phase 15)
+## 2. Voice Command Reference (Guided Conversation & Push-to-Talk)
 
-Voice input is **strictly optional** and **push-to-talk only** (`Speak Command`). Every voice action has an equivalent keyboard button and typed command box.
+Voice input is **strictly optional** and expects **English (`en-US`)**. Learners can use either:
+- **Push-to-Talk (`Speak Now` or `Alt+Shift+V`):** Activates one bounded 8-second listening turn on demand.
+- **Optional Guided Conversation (`Start Guided Conversation`):** Explicit opt-in turn-taking where SenseGraph finishes speaking the complete prompt (`onend`), plays a soft listening chime, and opens one bounded 8-second listening turn automatically until the learner pauses or says `"Stop listening"`.
+
+Every voice action also has an equivalent keyboard button and typed command box.
 
 | Category | Example Spoken / Typed Commands | Verified Action |
 |---|---|---|
-| **Navigation** | `"Start learning"`, `"Continue learning"`, `"Next"`, `"Previous"`, `"Repeat"`, `"Help"`, `"Go back"`, `"Next lesson"` | Navigates steps safely without arbitrary code execution |
+| **Navigation & Control** | `"Start learning"`, `"Continue learning"`, `"Next"`, `"Previous"`, `"Repeat"`, `"Where am I?"`, `"Help"`, `"Go back"`, `"Next lesson"`, `"Stop listening"` | Navigates steps or pauses guided turn-taking safely |
 | **Subject & Level** | `"Show Physics lessons"`, `"Open Biology"`, `"Computer Science"`, `"Mathematics"`, `"Chemistry"`, `"Beginner"`, `"Intermediate"`, `"Advanced"` | Filters or opens matching lessons in the Learning Library |
 | **Exploration** | `"What is this?"`, `"Explain this component"`, `"Explain the diagram"`, `"Tell me more"` | Reads current component or diagram overview |
 | **Experiments** | `"Start experiment"`, `"Option one"`, `"Option two"`, `"The bulb will turn on"`, `"Submit my answer"`, `"Try again"`, `"Close the switch"` | Selects option & runs deterministic Python engine |
@@ -71,7 +75,7 @@ Every lesson has a **distinct diagram configuration or dataset**, passes determi
 
 ## 6. Accessibility Status & Remaining Limitations (Honest Disclosure)
 
-- **Automated verification:** 98 pytest tests (including Phase 15 voice intent/tutor routing, Phase 16 20-lesson validation & package security, and Phase 17 end-to-end voice + keyboard journeys), `ruff --target-version py311`, `node --check` on all modular JS files, and `evaluation.benchmark --mode dry-run`.
+- **Automated verification:** **103 pytest tests** (including Phase 15 voice intent/tutor routing, Phase 16 20-lesson validation & package security, Phase 17 end-to-end voice + keyboard journeys across Physics, Biology, and Chemistry, and Node.js mocked `SpeechSynthesis`/`SpeechRecognition` turn-taking event-order tests in `tests/test_voice_turn_taking.mjs`), `ruff --target-version py311`, `node --check` on all modular JS files, and `evaluation.benchmark --mode dry-run`.
 - **Not yet tested in this environment:** Live manual usability testing with **NVDA** (Windows) or **VoiceOver** (macOS), live microphone transcription in Chrome/Edge, and live Gemini Vision API calls (no `.env` key configured). Do not claim WCAG certification or blind-user validation until live assistive-technology sessions are completed.
 
 ---

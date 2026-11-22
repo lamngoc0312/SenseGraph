@@ -53,17 +53,19 @@
 
 ---
 
-## 4:10 – 4:50 | 6. Post-Hackathon Expansion: CS Flowchart Explorer
-**[Screen: Activate "Load CS Flowchart"; click "Run Trace"; press "Next step" twice]**
-> "Beyond our two core P0 hackathon modules, we built feature-flaggable expansions including a **Computer Science Flowchart Explorer** with a safe restricted expression parser—zero `eval` or `exec`—and bounded step limits so infinite loops halt safely. Users can enter an initial value for `n`, run a trace, and step forward or backward through every assignment, True/False branch, and live variable state."
+## 4:10 – 4:50 | 6. Biology & Chemistry in the 20-Lesson STEM Library
+**[Screen: Return to the 20-Lesson STEM Library; filter to Chemistry and open "Water Molecule (H2O)" or "Ethanol (C2H6O)" after exploring Biology]**
+> "Beyond our Physics and Biology food web modules, SenseGraph 2.0 includes a **20-lesson validated STEM Learning Library** spanning Physics, Biology, Computer Science, Mathematics, and Chemistry—with four distinct, scientifically validated lessons per subject.
+>
+> In **Biology**, learners can progress from a simple three-step food chain up to grassland, forest, and freshwater pond webs. In **Chemistry**, our pure-Python SMILES parser and valence validator lets learners explore beginner covalent molecules like Water (`H2O`), Methane (`CH4`), Carbon Dioxide (`CO2`), and Ethanol (`C2H6O`)—inspecting atom counts, single and double bonds, and covalent paths without ever inventing toxicity or lab-safety claims. And learners can navigate using keyboard/screen-reader mode, Push-to-Talk (`Alt+Shift+V`), or optional **Guided Conversation** turn-taking (English `en-US`)."
 
 ---
 
 ## 4:50 – 5:25 | 7. Live AI Status, Automated Tests & Honest Limitations
-**[Screen: Terminal showing `python -m pytest -v` (98 passed) and `python -m ruff check --target-version py311 app tests evaluation` (All checks passed)]**
+**[Screen: Terminal showing `python -m pytest -v` (103 passed) and `python -m ruff check --target-version py311 app tests evaluation` (All checks passed)]**
 > *(Branch A — if you ran a real Gemini API key live before recording: show a 20-second clip of uploading `physics_series.png` → Review AI-Generated Diagram → Validate → Confirm.)*
 >
 > *(Branch B — if recording without a local Gemini API key:)*
-> "Our entire backend, 20-lesson validated library, voice command interpreter, upload security, mocked Gemini Vision review workflow, Guided Learning Lab, and Grounded Tutor are verified by **98 passing automated tests** and GitHub Actions CI on Python 3.11 and 3.13.
+> "Our entire backend, 20-lesson validated library, Guided Conversation and Push-to-Talk voice turn-taking, upload security, mocked Gemini Vision review workflow, Guided Learning Lab, and Grounded Tutor are verified by **103 passing automated tests** and GitHub Actions CI on Python 3.11 and 3.13.
 >
 > We're candid about what comes next: live Gemini extraction benchmarking with an API key, live microphone QA in Chrome/Edge, plus formal NVDA, VoiceOver, and blind-student usability studies following our ethical protocol. Thank you for watching SenseGraph!"

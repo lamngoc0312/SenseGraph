@@ -40,8 +40,8 @@ SenseGraph implements a transparent six-step learning pipeline across two core P
 - **Backend:** Python 3.11–3.13, FastAPI, Pydantic v2, Pillow (MIME match, 5 MB limit, and 16 MP decompression-bomb guard), and `google-genai` behind a replaceable `VisionProvider` interface, plus per-IP rate limiting and `ENABLE_EXPERIMENTAL_DOMAINS` feature flags.
 - **Deterministic Engines:** Pure Python modules (`app/domains/physics.py`, `biology.py`, `flowchart.py`, `mathematics.py`, `chemistry.py`, `app/services/learning.py`, `tutor.py`) strictly separated from AI extraction and frontend rendering.
 - **Frontend:** Semantic HTML5, high-contrast responsive CSS (`[hidden] { display: none !important; }`, `:focus-visible`, `prefers-reduced-motion`), and modular vanilla JavaScript (`app.js`, `js/voice.js`, `js/library.js`, `js/guidance.js`) served from the same FastAPI origin with XSS-safe `textContent` rendering.
-- **SenseGraph 2.0 Student Experience:** Calm 5-step audio-first flow with contextual guidance, optional Push-to-Talk voice interaction (`POST /api/voice/interpret`), a **20-lesson validated STEM Learning Library** (`GET /api/lessons`), local-only progress tracking, and Educator JSON lesson package authoring (`POST /api/lessons/validate-package`).
-- **Quality & CI:** **98 automated unit, integration, and E2E tests** (`pytest`), Ruff lint checks (`--target-version py311`), repeatable evaluation harness (`evaluation/benchmark.py`), and GitHub Actions CI across Python 3.11 and 3.13.
+- **SenseGraph 2.0 Non-Visual Student Experience:** Calm 5-step audio-first flow with collapsible Settings drawer, contextual spoken guidance, optional **Guided Conversation** turn-taking (explicit opt-in, natural TTS `onend` → soft chime → bounded 8-second window, English `en-US`) alongside **Push-to-Talk** (`Speak Now` / `Alt+Shift+V`) and full keyboard/screen-reader support (`POST /api/voice/interpret`), a **20-lesson validated STEM Learning Library** (`GET /api/lessons`) spanning Physics, Biology, Computer Science, Mathematics, and Chemistry with local-only progress tracking, and Educator JSON lesson package authoring (`POST /api/lessons/validate-package`).
+- **Quality & CI:** **103 automated unit, integration, E2E, and mocked voice event-order tests** (`pytest` + Node.js `test_voice_turn_taking.mjs`), Ruff lint checks (`--target-version py311`), repeatable evaluation harness (`evaluation/benchmark.py`), and GitHub Actions CI confirmed passing across Python 3.11 and 3.13.
 
 ---
 
@@ -57,7 +57,7 @@ SenseGraph implements a transparent six-step learning pipeline across two core P
 ## Honest Limitations & AI Disclosure
 
 - **AI Coding Assistance:** Built with AI coding assistance (Google Antigravity / Gemini models) and integrates Google's `google-genai` SDK for optional live diagram extraction.
-- **Implemented vs. Live-Verified Status:** All **98 automated tests** pass using mocked vision providers and deterministic backend engines. Live Gemini API smoke testing against local credentials, live browser microphone transcription, NVDA/VoiceOver screen-reader audits, and blind-learner user studies have **not** been executed yet—no WCAG certification or unmeasured recognition accuracy is claimed.
+- **Implemented vs. Live-Verified Status:** All **103 automated tests** pass using mocked vision providers, mocked browser speech events, and deterministic backend engines. Live Gemini API smoke testing against local credentials, live browser microphone capture (English `en-US`), NVDA/VoiceOver/Braille screen-reader audits, and blind-learner user studies have **not** been executed yet—no WCAG certification or unmeasured recognition accuracy is claimed.
 - **Structured Input vs. Vision:** Mathematics (`math_plot`) and Chemistry (`chemistry_molecule`) use validated CSV and SMILES input workflows rather than image-to-graph recognition.
 
 ---

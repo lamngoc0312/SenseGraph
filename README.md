@@ -5,9 +5,9 @@
 - **Hackathon:** STEM2Connect AI Hackathon 2026
 - **Primary Track:** Education · **Related Social Impact:** Community Impact
 - **Stack:** Python 3.11–3.13, FastAPI, Pydantic v2, Vanilla HTML5/CSS/JS (modular `voice.js`, `library.js`, `guidance.js`), Google Gemini (`google-genai`), Pytest
-- **Current Build:** **SenseGraph 2.0** (Phases 1–17 complete; **98 automated tests passing**; **20 distinct validated STEM lessons** across 5 domains)
+- **Current Build:** **SenseGraph 2.0** (`main`; **103 automated tests passing**; **20 distinct validated STEM lessons** across 5 domains)
 
-> **New in SenseGraph 2.0 (Phases 14–17):** Calm **Audio-First Student Experience** (default) with contextual step guidance, optional **Push-to-Talk Conversational Voice Interaction** (`POST /api/voice/interpret`, routed to the Evidence-Grounded Tutor), a **20-Lesson Validated STEM Learning Library** (`GET /api/lessons`) with local-only progress tracking, and **Educator JSON Lesson Package Authoring** (`POST /api/lessons/validate-package`). See [docs/VOICE_AND_LIBRARY_GUIDE.md](docs/VOICE_AND_LIBRARY_GUIDE.md) for the complete Voice Command Reference, privacy disclosure, and lesson catalog.
+> **New in SenseGraph 2.0:** Calm non-visual **Audio-First Student Experience** (default) with contextual step guidance, optional **Guided Conversation** turn-taking (explicit opt-in, finishes TTS `onend` → soft listening cue → bounded 8-second listening window, English `en-US`) alongside **Push-to-Talk** (`Speak Now` / `Alt+Shift+V`) and full keyboard/screen-reader mode (`POST /api/voice/interpret`, routed to the Evidence-Grounded Tutor), a **20-Lesson Validated STEM Learning Library** (`GET /api/lessons`) spanning Physics, Biology, Computer Science, Mathematics, and Chemistry with local-only progress tracking, and **Educator JSON Lesson Package Authoring** (`POST /api/lessons/validate-package`). See [docs/VOICE_AND_LIBRARY_GUIDE.md](docs/VOICE_AND_LIBRARY_GUIDE.md) for the complete Voice Command Reference, privacy disclosure, and lesson catalog.
 
 ---
 
@@ -95,7 +95,7 @@ SenseGraph/
     dataset_manifest.json   # Curated original-asset benchmark manifest
     benchmark.py            # Repeatable precision/recall harness (dry-run & live modes)
   fixtures/                 # 5 curated pre-annotated JSON fixtures + 2 original PNGs
-  tests/                    # 98 automated unit, integration, & E2E tests across 15 test files
+  tests/                    # 103 automated unit, integration, E2E, & mocked voice event-order tests across 16 test files
   docs/                     # Product/technical specs, voice & library guide, decisions, evidence matrix
   submission/               # STEM2Connect Devpost copy, demo script, shot list, checklist
   .github/workflows/ci.yml  # GitHub Actions CI (Python 3.11 & 3.13: ruff + pytest + dry-run)
@@ -145,7 +145,7 @@ python -m pytest -v
 python -m evaluation.benchmark --mode dry-run
 ```
 - **Observed results:**
-  - **Pytest:** **98 passed** (`0 failed`, `0 warnings`) across 15 test modules (`test_models`, `test_physics`, `test_biology`, `test_api`, `test_ai_vision`, `test_learning`, `test_flowchart`, `test_mathematics`, `test_chemistry`, `test_tutor`, `test_evaluation_and_prod`, `test_ux_phase14`, `test_voice_phase15`, `test_library_phase16`, `test_e2e_phase17`).
+  - **Pytest:** **103 passed** (`0 failed`, `0 warnings`) across 16 test files (`test_models`, `test_physics`, `test_biology`, `test_api`, `test_ai_vision`, `test_learning`, `test_flowchart`, `test_mathematics`, `test_chemistry`, `test_tutor`, `test_evaluation_and_prod`, `test_ux_phase14`, `test_voice_phase15`, `test_library_phase16`, `test_e2e_phase17`, `test_nonvisual_phase18` including Node.js mocked `SpeechSynthesis`/`SpeechRecognition` event-order tests in `test_voice_turn_taking.mjs`).
   - **Ruff:** **All checks passed** (`--target-version py311`).
   - **JavaScript syntax:** `node --check` passed on `voice.js`, `library.js`, `guidance.js`, and `app.js`.
   - **Benchmark dry-run:** All 6 manifest cases validated (`status: "not_tested"` for live AI).
@@ -153,7 +153,7 @@ python -m evaluation.benchmark --mode dry-run
 
 ### Honest Limitations & What Has Not Been Verified Yet
 - **Live Gemini Vision smoke test:** **Not executed** in this environment because no local `GEMINI_API_KEY` was configured (`AI_PROVIDER=none`). Automated AI tests use mocked `VisionProvider` instances only. See [docs/EXTRACTION_EVALUATION.md](docs/EXTRACTION_EVALUATION.md).
-- **Live microphone, browser & screen-reader audit:** Automated browser microphone capture, live Chrome/Edge Web Speech API transcription, NVDA, JAWS, VoiceOver sessions, and blind-learner user studies have **not** been executed in this environment. Voice intent parsing, tutor routing, and full E2E journeys are verified via automated API/integration tests; see the manual Chrome/Edge microphone test script in [docs/VOICE_AND_LIBRARY_GUIDE.md](docs/VOICE_AND_LIBRARY_GUIDE.md). No WCAG compliance certification or demonstrated learning outcome is claimed. See [docs/EVIDENCE_MATRIX.md](docs/EVIDENCE_MATRIX.md) and [docs/USER_STUDY_PROTOCOL.md](docs/USER_STUDY_PROTOCOL.md).
+- **Live microphone, browser & screen-reader audit:** Live Chrome/Edge hardware microphone capture, real-world English (`en-US`) speech recognition accuracy, NVDA, JAWS, VoiceOver, Braille display sessions, and blind-learner user studies have **not** been executed in this environment. Voice intent parsing, Guided Conversation turn-taking event ordering, tutor routing, and full E2E journeys across Physics, Biology, and Chemistry are verified via automated API and mocked-event tests; see the manual Chrome/Edge microphone test script in [docs/VOICE_AND_LIBRARY_GUIDE.md](docs/VOICE_AND_LIBRARY_GUIDE.md). No WCAG compliance certification or demonstrated learning outcome is claimed. See [docs/EVIDENCE_MATRIX.md](docs/EVIDENCE_MATRIX.md) and [docs/USER_STUDY_PROTOCOL.md](docs/USER_STUDY_PROTOCOL.md).
 - **Structured-data domains:** Mathematics (`math_plot`) and Chemistry (`chemistry_molecule`) use validated CSV and SMILES inputs rather than image-to-graph recognition.
 
 ---
