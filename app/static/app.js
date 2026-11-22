@@ -1563,7 +1563,10 @@
     return el;
   }
 
+  let activeSpeechToken = 0;
+
   function stopTts() {
+    activeSpeechToken += 1;
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       window.speechSynthesis.cancel();
     }
@@ -1571,6 +1574,9 @@
     state.ttsPaused = false;
     updateTtsControls();
     updateAudioBarControls();
+    if (conversationController) {
+      conversationController.notifySpeaking(false, "cancelled");
+    }
   }
 
   function isSpeechSupported() {
@@ -1647,6 +1653,8 @@
 
   function speakText(text) {
     if (!text || !isSpeechSupported()) return;
+    activeSpeechToken += 1;
+    const token = activeSpeechToken;
     window.speechSynthesis.cancel();
     const utterance = new window.SpeechSynthesisUtterance(text);
     const rateVal =
@@ -1663,6 +1671,7 @@
     }
 
     utterance.onstart = () => {
+      if (token !== activeSpeechToken) return;
       state.ttsSpeaking = true;
       state.ttsPaused = false;
       updateTtsControls();
@@ -1670,18 +1679,20 @@
       if (conversationController) conversationController.notifySpeaking(true);
     };
     utterance.onend = () => {
+      if (token !== activeSpeechToken) return;
       state.ttsSpeaking = false;
       state.ttsPaused = false;
       updateTtsControls();
       updateAudioBarControls();
-      if (conversationController) conversationController.notifySpeaking(false);
+      if (conversationController) conversationController.notifySpeaking(false, "ended");
     };
     utterance.onerror = () => {
+      if (token !== activeSpeechToken) return;
       state.ttsSpeaking = false;
       state.ttsPaused = false;
       updateTtsControls();
       updateAudioBarControls();
-      if (conversationController) conversationController.notifySpeaking(false);
+      if (conversationController) conversationController.notifySpeaking(false, "error");
     };
     window.speechSynthesis.speak(utterance);
   }
@@ -4520,11 +4531,34 @@
         if (conversationController.guidedTurnTaking) {
           conversationController.stopGuidedConversation(false);
         } else {
-          setSpokenGuidance(
-            true,
-            "Guided voice conversation started. Wait for the soft chime after I finish speaking, then say your choice or say Stop listening anytime."
-          );
-          conversationController.startGuidedConversation("");
+          // Enable spoken guidance WITHOUT speaking yet so startGuidedConversation
+          // speaks the full intro + choices and waits for natural TTS onend before listening.
+          state.spokenGuidanceEnabled = true;
+          updateAudioBarControls();
+          const currentStepPrompt = window.SenseGraphGuidance
+            ? window.SenseGraphGuidance.buildSpokenDialogue({
+                step: state.studentStep,
+                voiceEnabled: true,
+                guidedTurnTaking: true,
+                lessonTitle: state.currentLessonMeta ? state.currentLessonMeta.title : "",
+                compIndex: state.studentCompIdx,
+                compCount:
+                  state.currentDiagram && state.currentDiagram.nodes
+                    ? state.currentDiagram.nodes.length
+                    : 0,
+                compLabel:
+                  state.currentDiagram &&
+                  state.currentDiagram.nodes &&
+                  state.currentDiagram.nodes[state.studentCompIdx]
+                    ? state.currentDiagram.nodes[state.studentCompIdx].label
+                    : "",
+                hasResult: Boolean(state.studentLastResult),
+              })
+            : "Say Next, a subject name, or Help.";
+          const introText =
+            "Guided voice conversation started. Wait for the soft chime after I finish speaking, then say your choice in English, or say Stop listening anytime. " +
+            currentStepPrompt;
+          conversationController.startGuidedConversation(introText);
         }
       });
     }

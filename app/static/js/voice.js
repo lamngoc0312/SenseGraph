@@ -395,15 +395,21 @@
       if (!SpeechInputAdapter.isSupported()) {
         this.guidedTurnTaking = false;
         this.lastError =
-          "Guided voice input requires Chrome or Edge speech recognition. Falling back to keyboard and spoken guidance.";
+          "Guided voice input requires Chrome or Edge speech recognition (English, en-US). Falling back to keyboard and spoken guidance.";
         this.emitUi();
         this.announceResponse(this.lastError);
         return false;
       }
+      this._clearPendingTurn();
+      if (this.input.isListening()) {
+        this.input.cancel();
+      }
       this.guidedTurnTaking = true;
       this.lastError = "";
       this.emitUi();
+
       if (introText) {
+        // Speak full intro + choices first; recognition will open ONLY after natural TTS onend.
         this.announceResponse(introText);
       } else {
         this.startListening();
@@ -425,12 +431,16 @@
     }
 
     startListening() {
+      // Prevent duplicate listening sessions or racing while processing.
+      if (this.input.isListening() || this.micState === "listening" || this.micState === "processing") {
+        return false;
+      }
       // Critical speech safety: stop app TTS before opening microphone
       // so SenseGraph never transcribes its own voice.
       this._clearPendingTurn();
       this.stopAppSpeech();
       this.lastError = "";
-      this.input.start();
+      return this.input.start();
     }
 
     cancelListening() {
@@ -443,7 +453,7 @@
       this.announceResponse("Listening cancelled.");
     }
 
-    notifySpeaking(isSpeaking) {
+    notifySpeaking(isSpeaking, reason = "ended") {
       if (isSpeaking) {
         this._clearPendingTurn();
         if (this.input.isListening()) {
@@ -464,15 +474,31 @@
       if (this.micState === "speaking") {
         this.micState = "ready";
         this.emitUi();
-        // Guided Turn-Taking: once TTS finishes cleanly, pause 350ms then open one bounded listening turn.
-        if (this.guidedTurnTaking) {
-          this._clearPendingTurn();
-          this._pendingTurnTimer = window.setTimeout(() => {
-            if (this.guidedTurnTaking && this.micState === "ready") {
-              this.input.start();
-            }
-          }, 350);
+      }
+
+      // Only natural TTS completion ("ended") may trigger the next bounded listening turn.
+      // Explicit cancellation ("cancelled") or speech errors ("error") must NEVER auto-start mic.
+      if (reason !== "ended") {
+        this._clearPendingTurn();
+        if (reason === "error") {
+          this.guidedTurnTaking = false;
+          this.emitUi();
         }
+        return;
+      }
+
+      if (this.guidedTurnTaking && !this.input.isListening() && this.micState === "ready") {
+        this._clearPendingTurn();
+        this._pendingTurnTimer = window.setTimeout(() => {
+          this._pendingTurnTimer = null;
+          if (
+            this.guidedTurnTaking &&
+            this.micState === "ready" &&
+            !this.input.isListening()
+          ) {
+            this.input.start();
+          }
+        }, 350);
       }
     }
 
@@ -500,7 +526,10 @@
             : result.spoken_response;
 
         this.lastReply = finalReply;
-        this.micState = SpeechInputAdapter.isSupported() ? "ready" : "unsupported";
+        // Preserve "speaking" state if execute(result) already started narrating the reply!
+        if (this.micState === "processing") {
+          this.micState = SpeechInputAdapter.isSupported() ? "ready" : "unsupported";
+        }
         this.emitUi();
 
         if (

@@ -1,5 +1,7 @@
 """Tests for Non-Visual Student Experience Redesign & Guided Voice Turn-Taking."""
 
+import shutil
+import subprocess
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -8,7 +10,8 @@ from app.main import app
 
 client = TestClient(app)
 
-STATIC_DIR = Path(__file__).resolve().parent.parent / "app" / "static"
+ROOT_DIR = Path(__file__).resolve().parent.parent
+STATIC_DIR = ROOT_DIR / "app" / "static"
 
 
 def test_default_student_ui_declutters_header_into_settings_drawer():
@@ -109,3 +112,18 @@ def test_complete_nonvisual_physics_and_biology_conversations():
     ).json()
     assert bio_eval["explanation"]
     assert bio_eval["evidence"]
+
+
+def test_guided_voice_turn_taking_event_order_and_cancellation_js():
+    """Run mocked SpeechSynthesis & SpeechRecognition event-ordering tests via Node.js."""
+    node_bin = shutil.which("node")
+    assert node_bin is not None, "Node.js is required to run JS turn-taking event tests"
+    result = subprocess.run(
+        [node_bin, str(ROOT_DIR / "tests" / "test_voice_turn_taking.mjs")],
+        cwd=str(ROOT_DIR),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, f"JS test failed:\n{result.stdout}\n{result.stderr}"
+    assert "ALL_VOICE_TURN_TAKING_TESTS_PASSED" in result.stdout

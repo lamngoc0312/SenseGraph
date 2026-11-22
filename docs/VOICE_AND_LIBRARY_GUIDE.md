@@ -34,7 +34,8 @@ Voice input is **strictly optional** and **push-to-talk only** (`Speak Command`)
 ## 3. Microphone Permission, Privacy & Browser Compatibility
 
 - **No automatic recording:** SenseGraph never starts the microphone on page load and never listens in the background.
-- **Feedback-loop prevention:** Activating `Speak Command` immediately stops browser speech synthesis so SenseGraph never transcribes its own voice.
+- **Language expectation:** Browser speech recognition currently expects **English (`en-US`)** spoken commands and questions.
+- **Feedback-loop prevention & turn-taking:** In Guided Conversation mode, SenseGraph finishes speaking the complete prompt (`SpeechSynthesisUtterance.onend`), plays a soft listening chime, and opens one bounded 8-second listening turn. Cancelled or errored utterances never trigger automatic listening. Activating `Speak Now` immediately stops browser speech synthesis so SenseGraph never transcribes its own voice.
 - **Privacy disclosure:** Browser Web Speech API (`SpeechRecognition` / `webkitSpeechRecognition`) in Chrome and Edge may send audio to the browser vendor's cloud speech service for transcription.
 - **Browser compatibility:**
   - **Chrome / Edge (Desktop):** Full support for `webkitSpeechRecognition` + `speechSynthesis` + keyboard/text fallback.
