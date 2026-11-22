@@ -32,6 +32,10 @@ from app.models import (
     LearningChallengeSetResponse,
     LearningEvaluateRequest,
     LearningEvaluationResponse,
+    LessonDetailResponse,
+    LessonMetadata,
+    LessonPackagePayload,
+    LessonPackageValidationResponse,
     MathAnalysisRequest,
     MathAnalysisResponse,
     MathCsvImportRequest,
@@ -44,6 +48,8 @@ from app.models import (
     TutorAskRequest,
     TutorAskResponse,
     ValidationResponse,
+    VoiceInterpretRequest,
+    VoiceInterpretResponse,
 )
 from app.services.ai_vision import (
     GeminiVisionProvider,
@@ -56,8 +62,10 @@ from app.services.ai_vision import (
 from app.services.description import describe_diagram
 from app.services.fixtures import FixtureRepository
 from app.services.learning import evaluate_challenge, generate_challenges
+from app.services.library import LessonLibrary
 from app.services.tutor import TutorNarrator, answer_grounded_question
 from app.services.validators import validate_diagram, validate_raw_diagram
+from app.services.voice import interpret_voice_command
 from app.settings import PROJECT_ROOT, Settings, load_settings
 
 
@@ -98,6 +106,7 @@ def create_app(
     """Create and configure the SenseGraph FastAPI application."""
     active_settings = settings or load_settings()
     fixture_repo = FixtureRepository(active_settings.fixtures_dir)
+    lesson_library = LessonLibrary(fixture_repo)
     active_provider: VisionProvider | None = (
         vision_provider
         if vision_provider is not None
@@ -413,6 +422,43 @@ def create_app(
             learn_mode=request.learn_mode,
             narrator=tutor_narrator,
         )
+
+    @application.post("/api/voice/interpret", response_model=VoiceInterpretResponse)
+    def post_voice_interpret(request: VoiceInterpretRequest) -> VoiceInterpretResponse:
+        return interpret_voice_command(request, narrator=tutor_narrator)
+
+    @application.get("/api/lessons", response_model=list[LessonMetadata])
+    def list_lessons(
+        domain: str | None = None,
+        difficulty: str | None = None,
+        q: str | None = None,
+    ) -> list[LessonMetadata]:
+        enabled = set(active_settings.active_domains)
+        return lesson_library.list_lessons(
+            domain=domain,
+            difficulty=difficulty,
+            query=q,
+            enabled_domains=enabled,
+        )
+
+    @application.get("/api/lessons/{lesson_id}", response_model=LessonDetailResponse)
+    def get_lesson(lesson_id: str) -> LessonDetailResponse:
+        detail = lesson_library.get_lesson(lesson_id)
+        if detail is None:
+            raise APIError(
+                status_code=404,
+                code="NOT_FOUND",
+                message=f"Lesson '{lesson_id}' was not found in the Learning Library.",
+            )
+        return detail
+
+    @application.post(
+        "/api/lessons/validate-package", response_model=LessonPackageValidationResponse
+    )
+    def post_validate_lesson_package(
+        payload: LessonPackagePayload,
+    ) -> LessonPackageValidationResponse:
+        return lesson_library.validate_lesson_package(payload)
 
     return application
 

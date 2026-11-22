@@ -5,7 +5,7 @@
 **Pre-recording prep:**
 1. Close personal tabs/notifications; open Chrome/Edge to `http://127.0.0.1:8000`.
 2. Start server: `python -m uvicorn app.main:app --reload`.
-3. Keep a second PowerShell terminal ready showing `python -m pytest -v` (**82 passed**) and `python -m ruff check app tests evaluation` (**All checks passed**).
+3. Keep a second PowerShell terminal ready showing `python -m pytest -v` (**98 passed**) and `python -m ruff check --target-version py311 app tests evaluation` (**All checks passed**).
 
 | Shot | Time | On-Screen Action | What Judges Should See |
 |---|---|---|---|
@@ -15,4 +15,4 @@
 | 4 | 2:20–3:15 | Click **Load Biology Food Web** -> select **Rabbit** -> click **Remove Rabbit** -> click **Reset Experiment** | Food-to-consumer arrow convention, incoming (Grass) & outgoing (Fox), exact 2 removed edges + non-extinction disclaimer, SVG updating from 5 to 4 nodes, Reset restoring all 5 |
 | 5 | 3:15–4:10 | Scroll to **Evidence-Grounded STEM Tutor** -> ask *"Is there a path from Grass to Fox?"* -> then ask *"Will Fox go extinct if Rabbit is removed?"* | Tool-backed verified answer with exact `node:`/`edge:` citations, followed by honest abstention *"Not established by this diagram."* |
 | 6 | 4:10–4:50 | Click **Load CS Flowchart** -> click **Run Trace** -> click **Next step** 2–3 times | Safe restricted interpreter (no `eval`/`exec`), bounded step trace, branch condition readout, live variable environment (`n`, `total`), synchronized SVG flowchart |
-| 7 | 4:50–5:25 | Switch to PowerShell showing `python -m pytest -v` (**82 passed**) and `ruff` (**All checks passed**) *(or insert 20s live Gemini upload clip if a real local API key was tested)* | Verified automated tests, CI discipline, honest limitations (no fabricated live-AI or WCAG claims), and next steps |
+| 7 | 4:50–5:25 | Switch to PowerShell showing `python -m pytest -v` (**98 passed**) and `ruff` (**All checks passed**) *(or insert 20s live Gemini upload clip if a real local API key was tested)* | Verified automated tests across all 20 lessons & voice flows, CI discipline, honest limitations (no fabricated live-AI, mic, or WCAG claims), and next steps |

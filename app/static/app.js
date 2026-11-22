@@ -92,6 +92,7 @@
     studentStep: "welcome", // "welcome" | "subjects" | "explore" | "experiment" | "summary"
     studentCompIdx: 0,
     studentLastResult: null,
+    currentLessonMeta: null, // Phase 16 active LessonMetadata
     spokenGuidanceEnabled: false, // Strictly OFF by default — never autoplays
     lastNarrationText: "",
     availableVoices: [],
@@ -111,10 +112,24 @@
     audioRateSelect: document.getElementById("audio-rate-select"),
     audioVoiceSelect: document.getElementById("audio-voice-select"),
     audioModeStatus: document.getElementById("audio-mode-status"),
+    voicePttBtn: document.getElementById("voice-ptt-btn"),
+    voiceGuidedTurnBtn: document.getElementById("voice-guided-turn-btn"),
+    voiceShortcutCheckbox: document.getElementById("voice-shortcut-checkbox"),
+    voiceCancelBtn: document.getElementById("voice-cancel-btn"),
+    voiceMicStatus: document.getElementById("voice-mic-status"),
+    voiceCommandPanel: document.getElementById("voice-command-panel"),
+    voiceTextForm: document.getElementById("voice-text-form"),
+    voiceTextInput: document.getElementById("voice-text-input"),
+    voiceTranscriptBox: document.getElementById("voice-transcript-box"),
+    voiceHeardLine: document.getElementById("voice-heard-line"),
+    voiceReplyLine: document.getElementById("voice-reply-line"),
 
     // Phase 14: Student Experience DOM
     studentSection: document.getElementById("student-section"),
     studentStepper: document.getElementById("student-stepper"),
+    guideWhere: document.getElementById("guide-where"),
+    guideWhat: document.getElementById("guide-what"),
+    guideHow: document.getElementById("guide-how"),
     studentHelpDialog: document.getElementById("student-help-dialog"),
     studentHelpHeading: document.getElementById("student-help-heading"),
     studentHelpCloseBtn: document.getElementById("student-help-close-btn"),
@@ -127,7 +142,21 @@
 
     studentStepSubjects: document.getElementById("student-step-subjects"),
     studentSubjectsHeading: document.getElementById("student-subjects-heading"),
+    studentProgressText: document.getElementById("student-progress-text"),
+    studentContinueBtn: document.getElementById("student-continue-btn"),
+    studentClearProgressBtn: document.getElementById("student-clear-progress-btn"),
+    libraryDomainFilter: document.getElementById("library-domain-filter"),
+    libraryDifficultyFilter: document.getElementById("library-difficulty-filter"),
+    librarySearchInput: document.getElementById("library-search-input"),
     studentSubjectsGrid: document.getElementById("student-subjects-grid"),
+    authorExportForm: document.getElementById("authoring-export-form"),
+    authorLessonTitle: document.getElementById("author-lesson-title"),
+    authorLessonDifficulty: document.getElementById("author-lesson-difficulty"),
+    authorLessonDesc: document.getElementById("author-lesson-desc"),
+    authorLessonObjectives: document.getElementById("author-lesson-objectives"),
+    authorImportInput: document.getElementById("author-import-input"),
+    authorPreviewStudentBtn: document.getElementById("author-preview-student-btn"),
+    authorStatusMsg: document.getElementById("author-status-msg"),
     studentSubjectsBackBtn: document.getElementById("student-subjects-back-btn"),
     studentSubjectsUploadBtn: document.getElementById("student-subjects-upload-btn"),
     studentSubjectsHelpBtn: document.getElementById("student-subjects-help-btn"),
@@ -1534,7 +1563,10 @@
     return el;
   }
 
+  let activeSpeechToken = 0;
+
   function stopTts() {
+    activeSpeechToken += 1;
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       window.speechSynthesis.cancel();
     }
@@ -1542,6 +1574,9 @@
     state.ttsPaused = false;
     updateTtsControls();
     updateAudioBarControls();
+    if (conversationController) {
+      conversationController.notifySpeaking(false, "cancelled");
+    }
   }
 
   function isSpeechSupported() {
@@ -1618,6 +1653,8 @@
 
   function speakText(text) {
     if (!text || !isSpeechSupported()) return;
+    activeSpeechToken += 1;
+    const token = activeSpeechToken;
     window.speechSynthesis.cancel();
     const utterance = new window.SpeechSynthesisUtterance(text);
     const rateVal =
@@ -1634,22 +1671,28 @@
     }
 
     utterance.onstart = () => {
+      if (token !== activeSpeechToken) return;
       state.ttsSpeaking = true;
       state.ttsPaused = false;
       updateTtsControls();
       updateAudioBarControls();
+      if (conversationController) conversationController.notifySpeaking(true);
     };
     utterance.onend = () => {
+      if (token !== activeSpeechToken) return;
       state.ttsSpeaking = false;
       state.ttsPaused = false;
       updateTtsControls();
       updateAudioBarControls();
+      if (conversationController) conversationController.notifySpeaking(false, "ended");
     };
     utterance.onerror = () => {
+      if (token !== activeSpeechToken) return;
       state.ttsSpeaking = false;
       state.ttsPaused = false;
       updateTtsControls();
       updateAudioBarControls();
+      if (conversationController) conversationController.notifySpeaking(false, "error");
     };
     window.speechSynthesis.speak(utterance);
   }
@@ -1671,6 +1714,7 @@
       state.lastNarrationText = textToSpeak;
       speakText(textToSpeak);
     }
+    updateContextualGuidance();
   }
 
   function updateTtsControls() {
@@ -3550,6 +3594,34 @@
       : "btn btn-secondary btn-sm";
   }
 
+  function updateContextualGuidance() {
+    if (!window.SenseGraphGuidance || !dom.guideWhere) return;
+    const diagram = state.currentDiagram;
+    const node =
+      diagram && diagram.nodes && diagram.nodes[state.studentCompIdx]
+        ? diagram.nodes[state.studentCompIdx]
+        : null;
+    const info = window.SenseGraphGuidance.buildContextualGuidance({
+      step: state.studentStep,
+      voiceEnabled: state.spokenGuidanceEnabled,
+      guidedTurnTaking: Boolean(
+        conversationController && conversationController.guidedTurnTaking
+      ),
+      lessonTitle: state.currentLessonMeta
+        ? state.currentLessonMeta.title
+        : diagram
+          ? diagram.title
+          : "",
+      compIndex: state.studentCompIdx,
+      compCount: diagram && diagram.nodes ? diagram.nodes.length : 0,
+      compLabel: node ? node.label : "",
+      hasResult: Boolean(state.studentLastResult),
+    });
+    dom.guideWhere.textContent = info.where;
+    dom.guideWhat.textContent = info.what;
+    dom.guideHow.textContent = info.how;
+  }
+
   function setStudentStep(step, focusHeading = true) {
     state.studentStep = step;
     closeStudentHelp(false);
@@ -3573,6 +3645,11 @@
       if (card) card.hidden = key !== step;
     }
 
+    // Keep Welcome screen ultra-calm: show the voice/text command bar once learning begins.
+    if (dom.voiceCommandPanel) {
+      dom.voiceCommandPanel.hidden = step === "welcome";
+    }
+
     if (dom.studentStepper) {
       const currentIdx = STUDENT_STEP_ORDER.indexOf(step);
       const items = dom.studentStepper.querySelectorAll("li[data-step]");
@@ -3593,6 +3670,7 @@
       });
     }
 
+    updateContextualGuidance();
     if (focusHeading && stepHeadings[step]) {
       stepHeadings[step].focus();
     }
@@ -3664,43 +3742,182 @@
     }
   }
 
+  let progressStore = null;
+  let libraryController = null;
+  let educatorPackageTool = null;
+
+  function updateProgressUi() {
+    if (!progressStore || !libraryController || !dom.studentProgressText) return;
+    const summary = progressStore.getSummary(libraryController.lessons.length);
+    dom.studentProgressText.textContent =
+      `Progress: ${summary.completedCount} of ${summary.totalLessons} lessons completed`;
+    if (dom.studentContinueBtn) {
+      dom.studentContinueBtn.hidden = !summary.currentLessonId;
+    }
+  }
+
   function renderStudentSubjects() {
     if (!dom.studentSubjectsGrid) return;
     dom.studentSubjectsGrid.textContent = "";
+    updateProgressUi();
 
+    const lessons =
+      libraryController && libraryController.lessons.length > 0
+        ? libraryController.getFilteredLessons()
+        : [];
+
+    if (lessons.length === 0 && libraryController && libraryController.lessons.length > 0) {
+      const empty = document.createElement("p");
+      empty.className = "student-lead";
+      empty.textContent =
+        "No lessons matched your current filter. Clear the search or choose All 5 Subjects.";
+      dom.studentSubjectsGrid.appendChild(empty);
+      return;
+    }
+
+    if (lessons.length > 0) {
+      for (const lesson of lessons) {
+        const meta = STUDENT_SUBJECT_META[lesson.domain] || { icon: "S" };
+        const completed = progressStore ? progressStore.isCompleted(lesson.lesson_id) : false;
+
+        const card = document.createElement("article");
+        card.className = "subject-tile";
+
+        const topRow = document.createElement("div");
+        topRow.className = "lesson-meta-row";
+
+        const badge = document.createElement("span");
+        badge.className = "subject-icon-badge";
+        badge.setAttribute("aria-hidden", "true");
+        badge.textContent = meta.icon;
+        topRow.appendChild(badge);
+
+        const diffBadge = document.createElement("span");
+        diffBadge.className = "badge badge-domain";
+        diffBadge.textContent =
+          lesson.difficulty.charAt(0).toUpperCase() + lesson.difficulty.slice(1);
+        topRow.appendChild(diffBadge);
+
+        const durBadge = document.createElement("span");
+        durBadge.className = "badge badge-neutral";
+        durBadge.textContent = lesson.estimated_duration || "5 min";
+        topRow.appendChild(durBadge);
+
+        if (completed) {
+          const doneBadge = document.createElement("span");
+          doneBadge.className = "badge badge-completed";
+          doneBadge.textContent = "Completed";
+          topRow.appendChild(doneBadge);
+        }
+
+        const heading = document.createElement("h3");
+        heading.textContent = lesson.title;
+
+        const blurb = document.createElement("p");
+        blurb.textContent = lesson.description;
+
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "btn btn-primary";
+        btn.textContent = completed ? "Review Lesson" : "Start Lesson";
+        btn.setAttribute(
+          "aria-label",
+          `${completed ? "Review" : "Start"} Lesson: ${lesson.title} (${lesson.difficulty})`
+        );
+        btn.addEventListener("click", () => startStudentLessonById(lesson.lesson_id));
+
+        card.appendChild(topRow);
+        card.appendChild(heading);
+        card.appendChild(blurb);
+        card.appendChild(btn);
+        dom.studentSubjectsGrid.appendChild(card);
+      }
+      return;
+    }
+
+    // Fallback to /api/examples if library is empty
     for (const ex of state.examples) {
       const meta = STUDENT_SUBJECT_META[ex.domain] || {
         icon: "S",
         shortTitle: ex.title,
         blurb: ex.summary,
       };
-
       const card = document.createElement("article");
       card.className = "subject-tile";
-
-      const badge = document.createElement("span");
-      badge.className = "subject-icon-badge";
-      badge.setAttribute("aria-hidden", "true");
-      badge.textContent = meta.icon;
-
       const heading = document.createElement("h3");
       heading.textContent = meta.shortTitle;
-
-      const blurb = document.createElement("p");
-      blurb.textContent = meta.blurb;
-
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "btn btn-primary";
       btn.textContent = "Start Lesson";
-      btn.setAttribute("aria-label", `Start Lesson: ${meta.shortTitle}`);
       btn.addEventListener("click", () => startStudentLesson(ex.id));
-
-      card.appendChild(badge);
       card.appendChild(heading);
-      card.appendChild(blurb);
       card.appendChild(btn);
       dom.studentSubjectsGrid.appendChild(card);
+    }
+  }
+
+  async function startStudentLessonWithDiagram(diagram, lessonMeta = null) {
+    const backendState = await fetchBackendState(diagram);
+    state.baselineDiagram = deepClone(diagram);
+    state.currentDiagram = deepClone(diagram);
+    state.currentLessonMeta = lessonMeta;
+    state.backendState = backendState;
+    state.selectedNodeId = diagram.nodes.length > 0 ? diagram.nodes[0].id : null;
+    state.studentCompIdx = 0;
+    state.studentLastResult = null;
+    state.lastSimulation = null;
+    state.explorerMode = "explore";
+    state.tourStep = "overview";
+    state.flowchartTrace = null;
+    state.flowchartStepIdx = 0;
+    state.flowchartInputValues = {};
+    state.mathAnalysis = null;
+    state.mathPointIdx = 0;
+    state.tutorHistory = [];
+    renderTutorHistory();
+
+    if (diagram.domain === "math_plot") {
+      state.mathAnalysis = await apiRequest("/api/math/analyze", {
+        method: "POST",
+        body: JSON.stringify({ diagram }),
+      });
+    }
+
+    stopTts();
+    resetLabState();
+    await loadLabChallengesForBaseline();
+    state.isBusy = false;
+
+    if (progressStore && lessonMeta) {
+      progressStore.setCurrent(lessonMeta.lesson_id, "explore");
+      updateProgressUi();
+    }
+
+    setStudentStep("explore", true);
+    renderStudentExplore(false);
+
+    const firstNode = diagram.nodes[0];
+    const introText =
+      `Started lesson: ${lessonMeta ? lessonMeta.title : diagram.title}. ` +
+      `${formatSourceLabel(diagram.source)}. ` +
+      `This diagram has ${diagram.nodes.length} components. ` +
+      (firstNode ? buildStudentComponentNarration(diagram, firstNode, 0) : "");
+    announce(introText);
+  }
+
+  async function startStudentLessonById(lessonId) {
+    if (state.isBusy || !libraryController) return;
+    clearError();
+    state.isBusy = true;
+    announce("Loading lesson…");
+    try {
+      const detail = await libraryController.fetchLessonDetail(lessonId);
+      await startStudentLessonWithDiagram(detail.diagram, detail.lesson);
+    } catch (err) {
+      state.isBusy = false;
+      showError(`Could not load lesson: ${err.message}`);
+      announce(`Error loading lesson: ${err.message}`);
     }
   }
 
@@ -3725,8 +3942,12 @@
     const node = diagram.nodes[state.studentCompIdx];
     state.selectedNodeId = node.id;
 
-    dom.studentExploreHeading.textContent = diagram.title;
-    dom.studentExploreBadge.textContent = formatSourceLabel(diagram.source);
+    dom.studentExploreHeading.textContent = state.currentLessonMeta
+      ? state.currentLessonMeta.title
+      : diagram.title;
+    dom.studentExploreBadge.textContent =
+      (state.currentLessonMeta && state.currentLessonMeta.provenance) ||
+      formatSourceLabel(diagram.source);
     dom.studentExploreIntro.textContent = diagram.summary;
 
     dom.studentCompCounter.textContent = `Component ${state.studentCompIdx + 1} of ${diagram.nodes.length}`;
@@ -3743,6 +3964,7 @@
       : "Next Component";
 
     renderSemanticSvgGraph(diagram, dom.studentMiniSvg);
+    updateContextualGuidance();
 
     const narration = buildStudentComponentNarration(diagram, node, state.studentCompIdx);
     state.lastNarrationText = narration;
@@ -3902,6 +4124,12 @@
       }
 
       state.isBusy = false;
+      if (progressStore && state.currentLessonMeta) {
+        progressStore.recordAttempt(state.currentLessonMeta.lesson_id);
+        progressStore.markCompleted(state.currentLessonMeta.lesson_id);
+        progressStore.setCurrent(state.currentLessonMeta.lesson_id, "summary");
+        updateProgressUi();
+      }
       setStudentStep("summary", true);
       renderStudentSummary();
     } catch (err) {
@@ -3937,6 +4165,15 @@
   }
 
   function startNextStudentLesson() {
+    if (libraryController && libraryController.lessons.length > 0) {
+      const curId = state.currentLessonMeta ? state.currentLessonMeta.lesson_id : null;
+      const completed = progressStore ? progressStore.data.completedLessonIds : [];
+      const nextLesson = libraryController.getRecommendedNext(curId, completed);
+      if (nextLesson) {
+        startStudentLessonById(nextLesson.lesson_id);
+        return;
+      }
+    }
     if (!state.examples.length) return;
     const curId = state.baselineDiagram ? state.baselineDiagram.id : null;
     const idx = state.examples.findIndex((ex) => ex.id === curId);
@@ -3944,6 +4181,423 @@
     if (next) {
       startStudentLesson(next.id);
     }
+  }
+
+  let conversationController = null;
+
+  function updateVoiceUiState(ui) {
+    if (!dom.voicePttBtn || !dom.voiceMicStatus) return;
+    const labels = {
+      ready: "Mic: Ready",
+      listening: "Mic: Listening…",
+      processing: "Mic: Processing…",
+      speaking: "Mic: Speaking…",
+      error: "Mic: Error",
+      unsupported: "Mic: Unsupported (use keyboard/text)",
+    };
+    dom.voiceMicStatus.textContent = labels[ui.micState] || `Mic: ${ui.micState}`;
+    dom.voiceMicStatus.className =
+      ui.micState === "listening"
+        ? "badge badge-listening"
+        : ui.micState === "processing"
+          ? "badge badge-processing"
+          : "badge badge-neutral";
+
+    dom.voicePttBtn.disabled = !ui.supported || ui.micState === "processing";
+    dom.voicePttBtn.setAttribute("aria-pressed", String(ui.micState === "listening"));
+    dom.voicePttBtn.textContent =
+      ui.micState === "listening" ? "Listening…" : "Speak Now (Alt+Shift+V)";
+    dom.voiceCancelBtn.disabled = ui.micState !== "listening" && !ui.guidedTurnTaking;
+
+    if (dom.voiceGuidedTurnBtn) {
+      dom.voiceGuidedTurnBtn.disabled = !ui.supported;
+      dom.voiceGuidedTurnBtn.setAttribute("aria-pressed", String(Boolean(ui.guidedTurnTaking)));
+      dom.voiceGuidedTurnBtn.textContent = ui.guidedTurnTaking
+        ? "Stop Guided Conversation"
+        : "Start Guided Conversation";
+      dom.voiceGuidedTurnBtn.className = ui.guidedTurnTaking
+        ? "btn btn-primary btn-sm"
+        : "btn btn-teal btn-sm";
+    }
+    updateContextualGuidance();
+
+    if (ui.lastTranscript || ui.lastReply || ui.lastError) {
+      dom.voiceTranscriptBox.hidden = false;
+      dom.voiceHeardLine.textContent = ui.lastTranscript
+        ? `You said: "${ui.lastTranscript}"`
+        : "";
+      dom.voiceReplyLine.textContent = ui.lastError
+        ? ui.lastError
+        : ui.lastReply
+          ? `SenseGraph: ${ui.lastReply}`
+          : "";
+    }
+  }
+
+  function initVoiceController() {
+    if (!window.SenseGraphVoice) return;
+    const { VoiceCommandInterpreter, LearningSessionController, ConversationController } =
+      window.SenseGraphVoice;
+
+    const interpreter = new VoiceCommandInterpreter(apiRequest);
+    const sessionController = new LearningSessionController({
+      stopGuidedVoice: () => {
+        if (conversationController) conversationController.stopGuidedConversation(true);
+        return "Guided voice conversation paused. Use keyboard controls or press Speak Now anytime.";
+      },
+      whereAmI: () => {
+        if (window.SenseGraphGuidance) {
+          const diagram = state.currentDiagram;
+          const node =
+            diagram && diagram.nodes && diagram.nodes[state.studentCompIdx]
+              ? diagram.nodes[state.studentCompIdx]
+              : null;
+          return window.SenseGraphGuidance.buildSpokenDialogue({
+            step: state.studentStep,
+            voiceEnabled: state.spokenGuidanceEnabled,
+            guidedTurnTaking: Boolean(
+              conversationController && conversationController.guidedTurnTaking
+            ),
+            lessonTitle: state.currentLessonMeta ? state.currentLessonMeta.title : "",
+            compIndex: state.studentCompIdx,
+            compCount: diagram && diagram.nodes ? diagram.nodes.length : 0,
+            compLabel: node ? node.label : "",
+            hasResult: Boolean(state.studentLastResult),
+          });
+        }
+        return state.lastNarrationText || "You are in SenseGraph Student Experience.";
+      },
+      startLearning: () => {
+        setStudentStep("subjects", true);
+        const msg =
+          "Welcome! Choose Physics, Biology, Computer Science, Mathematics, or Chemistry.";
+        announce(msg);
+        return msg;
+      },
+      continueLearning: async () => {
+        if (progressStore && progressStore.data.currentLessonId && libraryController) {
+          await startStudentLessonById(progressStore.data.currentLessonId);
+          return `Resumed lesson ${state.currentLessonMeta ? state.currentLessonMeta.title : ""}.`;
+        }
+        if (state.currentDiagram) {
+          setStudentStep("explore", true);
+          renderStudentExplore(true);
+          return `Continuing ${state.currentDiagram.title}.`;
+        }
+        setStudentStep("subjects", true);
+        return "Choose a subject to begin learning.";
+      },
+      selectSubject: async (domain) => {
+        if (libraryController && libraryController.lessons.length > 0) {
+          libraryController.selectedDomain = domain;
+          if (dom.libraryDomainFilter) dom.libraryDomainFilter.value = domain;
+          setStudentStep("subjects", true);
+          renderStudentSubjects();
+          const matching = libraryController.getFilteredLessons();
+          const msg = `Showing ${matching.length} lessons. Say Beginner to start the first beginner lesson, or choose a lesson.`;
+          announce(msg);
+          return msg;
+        }
+        const match = state.examples.find((ex) => ex.domain === domain);
+        if (match) {
+          await startStudentLesson(match.id);
+          return `Opened ${match.title}.`;
+        }
+        setStudentStep("subjects", true);
+        return "Choose a subject from the available list.";
+      },
+      selectDifficulty: async (difficulty) => {
+        if (libraryController && libraryController.lessons.length > 0) {
+          libraryController.selectedDifficulty = difficulty;
+          if (dom.libraryDifficultyFilter) dom.libraryDifficultyFilter.value = difficulty;
+          renderStudentSubjects();
+          const matching = libraryController.getFilteredLessons();
+          if (matching.length > 0 && libraryController.selectedDomain) {
+            await startStudentLessonById(matching[0].lesson_id);
+            return `Started ${difficulty} lesson: ${matching[0].title}.`;
+          }
+          setStudentStep("subjects", true);
+          const msg = `Filtered to ${matching.length} ${difficulty} lessons.`;
+          announce(msg);
+          return msg;
+        }
+        setStudentStep("subjects", true);
+        announce(`Selected ${difficulty} difficulty. Choose a subject to begin.`);
+        return `Selected ${difficulty} difficulty.`;
+      },
+      next: () => {
+        if (state.studentStep === "welcome") {
+          setStudentStep("subjects", true);
+          announce("Step 2: Choose a subject.");
+          return "Step 2: Choose a subject.";
+        }
+        if (state.studentStep === "explore" && state.currentDiagram) {
+          if (state.studentCompIdx < state.currentDiagram.nodes.length - 1) {
+            state.studentCompIdx += 1;
+            renderStudentExplore(true);
+            return state.lastNarrationText;
+          }
+          setStudentStep("experiment", true);
+          renderStudentExperiment();
+          return "Moving to prediction and experiment.";
+        }
+        if (state.studentStep === "summary") {
+          startNextStudentLesson();
+          return "Loading next lesson.";
+        }
+        return "Use a button or say a subject name to continue.";
+      },
+      previous: () => {
+        if (state.studentStep === "explore" && state.studentCompIdx > 0) {
+          state.studentCompIdx -= 1;
+          renderStudentExplore(true);
+          return state.lastNarrationText;
+        }
+        if (state.studentStep === "experiment") {
+          setStudentStep("explore", true);
+          renderStudentExplore(true);
+          return "Returned to component exploration.";
+        }
+        if (state.studentStep === "subjects") {
+          setStudentStep("welcome", true);
+          announce("Returned to Welcome screen.");
+          return "Returned to Welcome screen.";
+        }
+        return "Already at the first item.";
+      },
+      repeat: () => {
+        const txt =
+          state.lastNarrationText ||
+          "You are in SenseGraph Student Experience. Say Start learning or Help.";
+        announce(txt);
+        return txt;
+      },
+      help: () => {
+        openStudentHelp(dom.voicePttBtn);
+        return "Opened keyboard and voice help.";
+      },
+      goBack: () => {
+        if (state.studentStep === "summary" || state.studentStep === "experiment") {
+          setStudentStep("explore", true);
+          renderStudentExplore(true);
+          return "Returned to exploration.";
+        }
+        if (state.studentStep === "explore") {
+          setStudentStep("subjects", true);
+          announce("Returned to Subject selection.");
+          return "Returned to Subject selection.";
+        }
+        setStudentStep("welcome", true);
+        announce("Returned to Welcome screen.");
+        return "Returned to Welcome screen.";
+      },
+      explainComponent: () => {
+        if (state.currentDiagram) {
+          renderStudentExplore(true);
+          return state.lastNarrationText;
+        }
+        return "Start a lesson first to explore components.";
+      },
+      explainDiagram: () => {
+        if (state.currentDiagram) {
+          const text = buildTourOverviewText(state.currentDiagram);
+          announce(text);
+          return text;
+        }
+        return "Start a lesson first to hear a diagram overview.";
+      },
+      tellMeMore: () => {
+        if (state.currentDiagram) {
+          const text = buildTourOverviewText(state.currentDiagram);
+          announce(text);
+          return text;
+        }
+        return "Choose a lesson to hear more details.";
+      },
+      startExperiment: () => {
+        if (!state.currentDiagram) {
+          return "Choose a subject and start a lesson before running an experiment.";
+        }
+        setStudentStep("experiment", true);
+        renderStudentExperiment();
+        return "Opened prediction and experiment step.";
+      },
+      selectOption: (optionId, optionLabel) => {
+        if (state.studentStep !== "experiment") {
+          return "Move to the experiment step first to select an answer option.";
+        }
+        const input = dom.studentExpOptions.querySelector(
+          `input[value="${CSS.escape(optionId)}"]`
+        );
+        if (input) {
+          input.checked = true;
+          input.focus();
+          return `Selected ${optionLabel}. Say Submit my answer to run the verified experiment.`;
+        }
+        return "That option was not found on this screen.";
+      },
+      submitAnswer: async () => {
+        if (state.studentStep === "experiment") {
+          await handleStudentExperimentSubmit(new Event("submit"));
+          return state.studentLastResult
+            ? `${state.studentLastResult.summary} ${state.studentLastResult.explanation}`
+            : "Submitted answer.";
+        }
+        return "Move to the experiment step before submitting an answer.";
+      },
+      tryAgain: async () => {
+        if (state.baselineDiagram) {
+          state.studentLastResult = null;
+          await restoreBaselineForLab();
+          setStudentStep("experiment", true);
+          renderStudentExperiment();
+          return "Experiment reset. Make a new prediction.";
+        }
+        return "No active experiment to retry.";
+      },
+      nextLesson: () => {
+        startNextStudentLesson();
+        return "Loading the next verified lesson.";
+      },
+      toggleSwitch: async () => {
+        if (state.currentDiagram && state.currentDiagram.domain === "physics_circuit") {
+          const sw = state.currentDiagram.nodes.find((n) => n.kind === "switch");
+          if (sw) {
+            await runSimulation({ type: "toggle_switch", target_id: sw.id });
+            if (state.uiExperience === "student") {
+              showSection("student");
+              renderStudentExplore(false);
+            }
+            return state.lastSimulation
+              ? state.lastSimulation.announcement
+              : "Toggled switch.";
+          }
+        }
+        return "Switch toggle is available in Physics series circuit lessons.";
+      },
+      confirmYes: () => {
+        if (state.studentStep === "explore") {
+          setStudentStep("experiment", true);
+          renderStudentExperiment();
+          return "Starting the verified experiment.";
+        }
+        if (state.studentStep === "summary") {
+          startNextStudentLesson();
+          return "Moving to the next lesson.";
+        }
+        return "Ready for your next choice.";
+      },
+      confirmNo: () => "Okay, staying right here. Say Next or Help whenever you are ready.",
+      displayTutorReply: (tutorResp, spoken) => spoken,
+    });
+
+    conversationController = new ConversationController({
+      getContext: () => {
+        const challenge =
+          state.labChallenges && state.labChallenges.length
+            ? state.labChallenges[state.labIndex] || state.labChallenges[0]
+            : null;
+        return {
+          step: state.studentStep,
+          domain: state.currentDiagram ? state.currentDiagram.domain : null,
+          selectedNodeId: state.selectedNodeId,
+          challengeId: challenge ? challenge.id : null,
+          availableOptions:
+            state.studentStep === "experiment" && challenge
+              ? challenge.options.map((o) => ({ id: o.id, label: o.label }))
+              : [],
+          diagram:
+            state.currentDiagram && state.currentDiagram.review_status === "confirmed"
+              ? state.currentDiagram
+              : null,
+        };
+      },
+      stopAppSpeech: stopTts,
+      announceResponse: announce,
+      onUiUpdate: updateVoiceUiState,
+      interpreter,
+      sessionController,
+    });
+
+    dom.voicePttBtn.addEventListener("click", () => {
+      if (conversationController.micState === "listening") {
+        conversationController.cancelListening();
+      } else {
+        conversationController.startListening();
+      }
+    });
+    if (dom.voiceGuidedTurnBtn) {
+      dom.voiceGuidedTurnBtn.addEventListener("click", () => {
+        if (conversationController.guidedTurnTaking) {
+          conversationController.stopGuidedConversation(false);
+        } else {
+          // Enable spoken guidance WITHOUT speaking yet so startGuidedConversation
+          // speaks the full intro + choices and waits for natural TTS onend before listening.
+          state.spokenGuidanceEnabled = true;
+          updateAudioBarControls();
+          const currentStepPrompt = window.SenseGraphGuidance
+            ? window.SenseGraphGuidance.buildSpokenDialogue({
+                step: state.studentStep,
+                voiceEnabled: true,
+                guidedTurnTaking: true,
+                lessonTitle: state.currentLessonMeta ? state.currentLessonMeta.title : "",
+                compIndex: state.studentCompIdx,
+                compCount:
+                  state.currentDiagram && state.currentDiagram.nodes
+                    ? state.currentDiagram.nodes.length
+                    : 0,
+                compLabel:
+                  state.currentDiagram &&
+                  state.currentDiagram.nodes &&
+                  state.currentDiagram.nodes[state.studentCompIdx]
+                    ? state.currentDiagram.nodes[state.studentCompIdx].label
+                    : "",
+                hasResult: Boolean(state.studentLastResult),
+              })
+            : "Say Next, a subject name, or Help.";
+          const introText =
+            "Guided voice conversation started. Wait for the soft chime after I finish speaking, then say your choice in English, or say Stop listening anytime. " +
+            currentStepPrompt;
+          conversationController.startGuidedConversation(introText);
+        }
+      });
+    }
+    // Optional non-conflicting keyboard shortcut (Alt+Shift+V) for Speak Now
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && conversationController) {
+        if (
+          conversationController.micState === "listening" ||
+          conversationController.guidedTurnTaking
+        ) {
+          e.preventDefault();
+          conversationController.cancelListening();
+        }
+      }
+      if (
+        e.altKey &&
+        e.shiftKey &&
+        e.key.toLowerCase() === "v" &&
+        (!dom.voiceShortcutCheckbox || dom.voiceShortcutCheckbox.checked)
+      ) {
+        e.preventDefault();
+        if (conversationController.micState === "listening") {
+          conversationController.cancelListening();
+        } else {
+          conversationController.startListening();
+        }
+      }
+    });
+    dom.voiceCancelBtn.addEventListener("click", () => {
+      conversationController.cancelListening();
+    });
+    dom.voiceTextForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const text = dom.voiceTextInput.value.trim();
+      if (!text) return;
+      dom.voiceTextInput.value = "";
+      await conversationController.handleTranscript(text);
+    });
+    conversationController.emitUi();
   }
 
   function showWelcome() {
@@ -4004,6 +4658,114 @@
     window.addEventListener("beforeunload", stopTts);
     updateAudioBarControls();
     updateExperienceButtons();
+
+    // Phase 16: Initialize Modular Library, Local Progress, & Educator Authoring
+    if (window.SenseGraphLibrary) {
+      progressStore = new window.SenseGraphLibrary.ProgressStore();
+      libraryController = new window.SenseGraphLibrary.LessonLibraryController(apiRequest);
+      educatorPackageTool = new window.SenseGraphLibrary.EducatorPackageTool(apiRequest);
+
+      if (dom.libraryDomainFilter) {
+        dom.libraryDomainFilter.addEventListener("change", () => {
+          libraryController.selectedDomain = dom.libraryDomainFilter.value;
+          renderStudentSubjects();
+          announce(`Showing ${libraryController.getFilteredLessons().length} lessons.`);
+        });
+      }
+      if (dom.libraryDifficultyFilter) {
+        dom.libraryDifficultyFilter.addEventListener("change", () => {
+          libraryController.selectedDifficulty = dom.libraryDifficultyFilter.value;
+          renderStudentSubjects();
+          announce(`Showing ${libraryController.getFilteredLessons().length} lessons.`);
+        });
+      }
+      if (dom.librarySearchInput) {
+        dom.librarySearchInput.addEventListener("input", () => {
+          libraryController.searchQuery = dom.librarySearchInput.value;
+          renderStudentSubjects();
+        });
+      }
+      if (dom.studentContinueBtn) {
+        dom.studentContinueBtn.addEventListener("click", () => {
+          if (progressStore.data.currentLessonId) {
+            startStudentLessonById(progressStore.data.currentLessonId);
+          }
+        });
+      }
+      if (dom.studentClearProgressBtn) {
+        dom.studentClearProgressBtn.addEventListener("click", () => {
+          progressStore.clear();
+          renderStudentSubjects();
+          announce("Local learning progress cleared.");
+        });
+      }
+      if (dom.authorExportForm) {
+        dom.authorExportForm.addEventListener("submit", async (e) => {
+          e.preventDefault();
+          clearError();
+          if (!state.currentDiagram) {
+            showError("Load or confirm a diagram before exporting a lesson package.");
+            return;
+          }
+          try {
+            const pkg = educatorPackageTool.buildPackage({
+              diagram: state.currentDiagram,
+              title: dom.authorLessonTitle.value,
+              description: dom.authorLessonDesc.value,
+              difficulty: dom.authorLessonDifficulty.value,
+              objectivesText: dom.authorLessonObjectives.value,
+            });
+            const validation = await educatorPackageTool.validatePackage(pkg);
+            if (!validation.valid) {
+              dom.authorStatusMsg.textContent = `Validation failed: ${validation.errors.join(" ")}`;
+              showError(`Lesson package invalid: ${validation.errors.join(" ")}`);
+              return;
+            }
+            educatorPackageTool.downloadJson({
+              lesson: validation.lesson,
+              diagram: validation.diagram,
+            });
+            dom.authorStatusMsg.textContent = `Validated and exported '${validation.lesson.title}'.`;
+            announce(`Exported validated lesson package ${validation.lesson.title}.`);
+          } catch (err) {
+            showError(`Export failed: ${err.message}`);
+          }
+        });
+      }
+      if (dom.authorImportInput) {
+        dom.authorImportInput.addEventListener("change", async () => {
+          const file = dom.authorImportInput.files && dom.authorImportInput.files[0];
+          if (!file) return;
+          clearError();
+          try {
+            const text = await file.text();
+            const parsed = JSON.parse(text);
+            const validation = await educatorPackageTool.validatePackage(parsed);
+            if (!validation.valid) {
+              dom.authorStatusMsg.textContent = `Import blocked: ${validation.errors.join(" ")}`;
+              showError(`Imported lesson package rejected: ${validation.errors.join(" ")}`);
+              return;
+            }
+            dom.authorStatusMsg.textContent = `Imported validated lesson '${validation.lesson.title}'. Previewing in Student Experience.`;
+            state.uiExperience = "student";
+            updateExperienceButtons();
+            showSection("student");
+            await startStudentLessonWithDiagram(validation.diagram, validation.lesson);
+          } catch (err) {
+            showError(`Could not import lesson JSON: ${err.message}`);
+          } finally {
+            dom.authorImportInput.value = "";
+          }
+        });
+      }
+      if (dom.authorPreviewStudentBtn) {
+        dom.authorPreviewStudentBtn.addEventListener("click", () => {
+          setExperience("student");
+        });
+      }
+    }
+
+    initVoiceController();
 
     // Phase 14: Student Experience Help & Escape handling
     dom.studentHelpCloseBtn.addEventListener("click", () => closeStudentHelp(true));
@@ -4274,6 +5036,9 @@
       ]);
       state.health = health;
       state.examples = examples;
+      if (libraryController) {
+        await libraryController.loadAll();
+      }
       renderHealth();
       renderExamplesGrid();
       renderStudentSubjects();

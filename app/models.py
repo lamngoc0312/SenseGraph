@@ -480,3 +480,106 @@ class LearningEvaluationResponse(BaseModel):
     evidence: list[str] = Field(default_factory=list)
     related_node_ids: list[str] = Field(default_factory=list)
     simulation_result: SimulationResponse | None = None
+
+
+# --- Phase 15: Conversational Voice Interaction ---
+
+
+VoiceIntentType = Literal[
+    "navigate",
+    "select_subject",
+    "select_difficulty",
+    "select_lesson",
+    "explore_action",
+    "experiment_action",
+    "select_option",
+    "submit_answer",
+    "tutor_question",
+    "confirm_yes",
+    "confirm_no",
+    "clarify",
+]
+
+
+class VoiceOptionSummary(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    label: str
+
+
+class VoiceInterpretRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    transcript: str = Field(..., min_length=1, max_length=400)
+    step: str = Field(default="welcome", max_length=40)
+    domain: str | None = None
+    selected_node_id: str | None = None
+    challenge_id: str | None = None
+    available_options: list[VoiceOptionSummary] = Field(default_factory=list)
+    diagram: DiagramDocument | None = None
+
+
+class VoiceInterpretResponse(BaseModel):
+    transcript: str
+    intent: VoiceIntentType
+    action: str
+    parameters: dict[str, Any] = Field(default_factory=dict)
+    spoken_response: str
+    needs_clarification: bool = False
+    confidence: Literal["high", "medium", "low"] = "high"
+    tutor_response: TutorAskResponse | None = None
+
+
+# --- Phase 16: Scalable STEM Learning Library & Educator Lesson Packages ---
+
+
+LessonDifficulty = Literal["beginner", "intermediate", "advanced"]
+
+
+class LessonStepItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    step_id: str
+    title: str
+    instruction: str
+
+
+class LessonMetadata(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    lesson_id: str = Field(..., min_length=1, max_length=80)
+    title: str = Field(..., min_length=1, max_length=160)
+    domain: DomainType
+    difficulty: LessonDifficulty
+    description: str = Field(..., min_length=1, max_length=600)
+    learning_objectives: list[str] = Field(default_factory=list)
+    prerequisites: list[str] = Field(default_factory=list)
+    diagram_id: str = Field(..., min_length=1, max_length=80)
+    estimated_duration: str = Field(default="5 min", max_length=40)
+    lesson_steps: list[LessonStepItem] = Field(default_factory=list)
+    supported_actions: list[str] = Field(default_factory=list)
+    challenges: list[str] = Field(default_factory=list)
+    explanations: list[str] = Field(default_factory=list)
+    review_status: ReviewStatus = "confirmed"
+    provenance: str = Field(default="Pre-annotated curriculum lesson — no AI used")
+
+
+class LessonDetailResponse(BaseModel):
+    lesson: LessonMetadata
+    diagram: DiagramDocument
+
+
+class LessonPackagePayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    lesson: LessonMetadata
+    diagram: DiagramDocument
+
+
+class LessonPackageValidationResponse(BaseModel):
+    valid: bool
+    errors: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    lesson: LessonMetadata | None = None
+    diagram: DiagramDocument | None = None

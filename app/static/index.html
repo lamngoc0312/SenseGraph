@@ -13,73 +13,81 @@
     <div class="container header-inner">
       <div class="brand-group">
         <a href="#main-content" class="brand-name" id="brand-home-link">SenseGraph</a>
-        <p class="brand-tagline">Explore STEM diagrams beyond sight</p>
+        <p class="brand-tagline">Non-visual interactive STEM learning</p>
       </div>
-      <div class="header-controls">
-        <nav class="experience-switcher" aria-label="Interface experience">
-          <button
-            type="button"
-            id="exp-student-btn"
-            class="btn btn-primary btn-sm"
-            aria-pressed="true"
-          >
-            Student Experience
-          </button>
-          <button
-            type="button"
-            id="exp-educator-btn"
-            class="btn btn-secondary btn-sm"
-            aria-pressed="false"
-          >
-            Educator / Advanced
-          </button>
-        </nav>
-        <div class="header-status" aria-label="Application mode">
-          <span id="health-badge" class="badge badge-neutral">Checking backend status…</span>
+      <!-- Calm Redesign: Move secondary settings & Educator switcher into a collapsible drawer -->
+      <details id="student-settings-drawer" class="settings-drawer">
+        <summary class="btn btn-secondary btn-sm settings-drawer-toggle">
+          Audio Settings &amp; Educator Mode
+        </summary>
+        <div class="settings-drawer-body">
+          <nav class="experience-switcher" aria-label="Interface experience">
+            <button
+              type="button"
+              id="exp-student-btn"
+              class="btn btn-primary btn-sm"
+              aria-pressed="true"
+            >
+              Student Experience
+            </button>
+            <button
+              type="button"
+              id="exp-educator-btn"
+              class="btn btn-secondary btn-sm"
+              aria-pressed="false"
+            >
+              Educator / Advanced
+            </button>
+          </nav>
+
+          <div class="audio-bar" aria-label="Spoken guidance and audio settings">
+            <div class="audio-primary-controls">
+              <button type="button" id="audio-start-btn" class="btn btn-teal btn-sm" aria-pressed="false">
+                Start spoken guidance
+              </button>
+              <button type="button" id="audio-pause-btn" class="btn btn-secondary btn-sm" disabled>
+                Pause
+              </button>
+              <button type="button" id="audio-stop-btn" class="btn btn-ghost btn-sm" disabled>
+                Stop
+              </button>
+              <button type="button" id="audio-repeat-btn" class="btn btn-ghost btn-sm">
+                Repeat
+              </button>
+            </div>
+            <div class="audio-settings-controls">
+              <div class="tts-rate-group">
+                <label for="audio-rate-select">Speed</label>
+                <select id="audio-rate-select">
+                  <option value="0.8">0.8x</option>
+                  <option value="1" selected>1.0x</option>
+                  <option value="1.25">1.25x</option>
+                  <option value="1.5">1.5x</option>
+                </select>
+              </div>
+              <div class="tts-rate-group">
+                <label for="audio-voice-select">Voice</label>
+                <select id="audio-voice-select">
+                  <option value="">Default browser voice</option>
+                </select>
+              </div>
+              <label class="shortcut-toggle-label">
+                <input type="checkbox" id="voice-shortcut-checkbox" checked />
+                Enable Alt+Shift+V shortcut for Speak Now
+              </label>
+              <span id="audio-mode-status" class="audio-status-text">
+                Listening mode: Screen reader ready (browser voice off)
+              </span>
+            </div>
+          </div>
+
+          <div class="header-status" aria-label="Application mode">
+            <span id="health-badge" class="badge badge-neutral">Checking backend status…</span>
+          </div>
         </div>
-      </div>
+      </details>
     </div>
   </header>
-
-  <!-- Phase 14: Optional Audio-First Guidance Bar (Off by default — never autoplays) -->
-  <section class="audio-bar" aria-label="Spoken guidance and listening options">
-    <div class="container audio-bar-inner">
-      <div class="audio-primary-controls">
-        <button type="button" id="audio-start-btn" class="btn btn-teal btn-sm" aria-pressed="false">
-          Start spoken guidance
-        </button>
-        <button type="button" id="audio-pause-btn" class="btn btn-secondary btn-sm" disabled>
-          Pause
-        </button>
-        <button type="button" id="audio-stop-btn" class="btn btn-ghost btn-sm" disabled>
-          Stop
-        </button>
-        <button type="button" id="audio-repeat-btn" class="btn btn-ghost btn-sm">
-          Repeat
-        </button>
-      </div>
-      <div class="audio-settings-controls">
-        <div class="tts-rate-group">
-          <label for="audio-rate-select">Speed</label>
-          <select id="audio-rate-select">
-            <option value="0.8">0.8x</option>
-            <option value="1" selected>1.0x</option>
-            <option value="1.25">1.25x</option>
-            <option value="1.5">1.5x</option>
-          </select>
-        </div>
-        <div class="tts-rate-group">
-          <label for="audio-voice-select">Voice</label>
-          <select id="audio-voice-select">
-            <option value="">Default browser voice</option>
-          </select>
-        </div>
-        <span id="audio-mode-status" class="audio-status-text">
-          Listening mode: Screen reader ready (browser voice off)
-        </span>
-      </div>
-    </div>
-  </section>
 
   <main id="main-content" class="container main-content" tabindex="-1">
     <!-- Polite live region for screen-reader announcements -->
@@ -114,6 +122,81 @@
           <li data-step="summary">5. Understand</li>
         </ol>
       </nav>
+
+      <!-- Phase 17: Calm Contextual Guidance Banner (Where am I? What can I do? How?) -->
+      <section
+        id="student-context-guide"
+        class="student-context-guide"
+        aria-label="Current step guidance"
+      >
+        <p id="guide-where" class="guide-where">Step 1 of 5 · Welcome to SenseGraph</p>
+        <p id="guide-what" class="guide-what">
+          Choose Screen Reader mode (recommended for NVDA/VoiceOver) or Spoken Guidance mode.
+        </p>
+        <p id="guide-how" class="guide-how">
+          Use Tab and Enter to choose an action, or press Speak Command anytime.
+        </p>
+      </section>
+
+      <!-- Phase 15 + Non-Visual Redesign: Calm Conversational Voice & Keyboard Bar (Hidden on Welcome) -->
+      <section
+        id="voice-command-panel"
+        class="voice-command-panel"
+        aria-label="Spoken conversation and keyboard command bar"
+        hidden
+      >
+        <div class="voice-turn-controls">
+          <button
+            type="button"
+            id="voice-guided-turn-btn"
+            class="btn btn-teal btn-sm"
+            aria-pressed="false"
+          >
+            Start Guided Conversation
+          </button>
+          <button
+            type="button"
+            id="voice-ptt-btn"
+            class="btn btn-primary btn-sm"
+            aria-pressed="false"
+          >
+            Speak Now (Alt+Shift+V)
+          </button>
+          <button
+            type="button"
+            id="voice-cancel-btn"
+            class="btn btn-ghost btn-sm"
+            disabled
+          >
+            Cancel Listening
+          </button>
+          <span id="voice-mic-status" class="badge badge-neutral">Mic: Ready</span>
+        </div>
+        <form id="voice-text-form" class="voice-text-form">
+          <label for="voice-text-input" class="sr-only">
+            Type a command or science question (keyboard alternative to microphone)
+          </label>
+          <input
+            type="text"
+            id="voice-text-input"
+            class="voice-text-input"
+            placeholder="Or type a command / question (e.g., 'Next', 'Explain more', 'Why is the bulb off?')"
+            autocomplete="off"
+          />
+          <button type="submit" id="voice-text-submit-btn" class="btn btn-secondary btn-sm">
+            Send
+          </button>
+        </form>
+        <div id="voice-transcript-box" class="voice-transcript-box" hidden>
+          <p id="voice-heard-line" class="voice-heard-line"></p>
+          <p id="voice-reply-line" class="voice-reply-line"></p>
+        </div>
+        <p class="voice-privacy-note">
+          Microphone is optional, expects English (en-US) speech input, never records on page load,
+          and stops automatically after 8 seconds of silence. Browser speech recognition may send
+          audio to your browser vendor's speech service.
+        </p>
+      </section>
 
       <!-- Dismissible Help Box (Escape closes cleanly) -->
       <aside
@@ -179,16 +262,68 @@
         </div>
       </section>
 
-      <!-- Stage 2: Subject Selection -->
+      <!-- Stage 2: Subject & Lesson Library Selection -->
       <section id="student-step-subjects" class="student-card" aria-labelledby="student-subjects-heading" hidden>
-        <p class="eyebrow">Step 2 of 5 · Pick a Lesson</p>
-        <h2 id="student-subjects-heading" tabindex="-1">Choose a Subject</h2>
+        <p class="eyebrow">Step 2 of 5 · STEM Learning Library</p>
+        <h2 id="student-subjects-heading" tabindex="-1">Choose a Subject &amp; Lesson</h2>
         <p class="student-lead">
-          Every lesson below is a verified pre-annotated demo (no AI guessing).
+          Browse 20 verified lessons across Physics, Biology, Computer Science, Mathematics, and Chemistry.
         </p>
 
+        <!-- Phase 16: Local-Only Learner Progress & Continue Learning -->
+        <div id="student-progress-bar" class="student-progress-bar">
+          <div>
+            <p id="student-progress-text" class="student-progress-text">
+              Progress: 0 of 20 lessons completed
+            </p>
+            <p class="voice-privacy-note">
+              Saved locally in this browser only (no account required; does not sync across devices).
+            </p>
+          </div>
+          <div class="student-progress-actions">
+            <button type="button" id="student-continue-btn" class="btn btn-teal btn-sm" hidden>
+              Continue Learning
+            </button>
+            <button type="button" id="student-clear-progress-btn" class="btn btn-ghost btn-sm">
+              Reset Progress
+            </button>
+          </div>
+        </div>
+
+        <!-- Phase 16: Dynamic Lesson Catalog Filters -->
+        <div class="library-filters" role="search" aria-label="Filter STEM lessons">
+          <div class="filter-field">
+            <label for="library-domain-filter">Subject</label>
+            <select id="library-domain-filter">
+              <option value="">All 5 Subjects</option>
+              <option value="physics_circuit">Physics — Circuits</option>
+              <option value="biology_food_web">Biology — Food Webs</option>
+              <option value="cs_flowchart">Computer Science — Flowcharts</option>
+              <option value="math_plot">Mathematics — XY Plots</option>
+              <option value="chemistry_molecule">Chemistry — Molecules</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <label for="library-difficulty-filter">Difficulty</label>
+            <select id="library-difficulty-filter">
+              <option value="">All Levels</option>
+              <option value="beginner">Beginner</option>
+              <option value="intermediate">Intermediate</option>
+              <option value="advanced">Advanced</option>
+            </select>
+          </div>
+          <div class="filter-field filter-search">
+            <label for="library-search-input">Search lessons</label>
+            <input
+              type="search"
+              id="library-search-input"
+              placeholder="e.g., switch, food web, loop, water…"
+            />
+          </div>
+        </div>
+
         <div id="student-subjects-grid" class="student-subjects-grid">
-          <!-- Populated dynamically from GET /api/examples -->
+          <!-- Populated dynamically from GET /api/lessons -->
         </div>
 
         <div class="student-footer-actions">
@@ -241,10 +376,10 @@
           </button>
         </div>
 
-        <div class="student-visual-sync">
-          <p class="field-hint">
-            Visual companion (optional for sighted learners — full text above):
-          </p>
+        <details class="student-visual-sync" id="student-visual-details">
+          <summary class="student-visual-summary">
+            Show optional visual diagram (for sighted learners — full text above)
+          </summary>
           <svg
             id="student-mini-svg"
             class="semantic-graph-svg"
@@ -252,7 +387,7 @@
             aria-hidden="true"
             focusable="false"
           ></svg>
-        </div>
+        </details>
 
         <div class="student-footer-actions">
           <button type="button" id="student-explore-back-btn" class="btn btn-secondary">
@@ -994,6 +1129,58 @@
           <!-- Populated dynamically with textContent -->
         </ol>
       </section>
+
+      <!-- Phase 16: Educator Lesson Package Authoring (Safe JSON Export / Import) -->
+      <section
+        id="educator-authoring-panel"
+        class="panel educator-authoring-panel"
+        aria-labelledby="authoring-heading"
+      >
+        <h2 id="authoring-heading">Educator Lesson Package Authoring</h2>
+        <p class="panel-hint">
+          Package the currently confirmed diagram with learning objectives into a validated
+          JSON lesson file, or import a validated lesson package to preview in Student Experience.
+          Unreviewed AI drafts are always blocked.
+        </p>
+
+        <form id="authoring-export-form" class="authoring-form">
+          <div class="authoring-grid">
+            <div class="form-field">
+              <label for="author-lesson-title">Lesson Title</label>
+              <input type="text" id="author-lesson-title" placeholder="Custom STEM Lesson Title" />
+            </div>
+            <div class="form-field">
+              <label for="author-lesson-difficulty">Difficulty</label>
+              <select id="author-lesson-difficulty">
+                <option value="beginner">Beginner</option>
+                <option value="intermediate">Intermediate</option>
+                <option value="advanced">Advanced</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-field">
+            <label for="author-lesson-desc">Lesson Description</label>
+            <textarea id="author-lesson-desc" rows="2" placeholder="Describe what students will learn…"></textarea>
+          </div>
+          <div class="form-field">
+            <label for="author-lesson-objectives">Learning Objectives (one per line)</label>
+            <textarea id="author-lesson-objectives" rows="2" placeholder="Identify components&#10;Predict experiment outcome"></textarea>
+          </div>
+          <div class="student-nav-bar">
+            <button type="submit" id="author-export-btn" class="btn btn-primary btn-sm">
+              Validate &amp; Export Lesson JSON
+            </button>
+            <label for="author-import-input" class="btn btn-secondary btn-sm authoring-import-label">
+              Import Lesson JSON
+              <input type="file" id="author-import-input" accept=".json,application/json" class="sr-only" />
+            </label>
+            <button type="button" id="author-preview-student-btn" class="btn btn-teal btn-sm">
+              Preview in Student Experience
+            </button>
+          </div>
+          <p id="author-status-msg" class="field-hint"></p>
+        </form>
+      </section>
     </section>
   </main>
 
@@ -1010,6 +1197,9 @@
     </div>
   </footer>
 
+  <script src="/static/js/voice.js" defer></script>
+  <script src="/static/js/library.js" defer></script>
+  <script src="/static/js/guidance.js" defer></script>
   <script src="/static/app.js" defer></script>
 </body>
 </html>
